@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildBook, toCsv } from "../bot/lib/forms.js";
+import { buildBook, toCsv, toHtml } from "../bot/lib/forms.js";
 import { confirmSales, planSales } from "../bot/lib/sales.js";
 import {
   createImporter,
@@ -157,6 +157,8 @@ test("sales use the 4.3 declared price and the 4.3 book renders", () => {
   const plan = planSales(doc, req);
   assert.equal(plan.sales[0]?.unitPrice, 100);
   const b43 = buildBook(doc, "4.3");
-  assert.equal(b43.rows[0]?.declaredUnitPrice, 100);
-  assert.equal(b43.rows[0]?.additionPct, 10);
+  assert.equal(b43.columns.length, 12);
+  assert.equal(b43.rows[0]?.inputValue, 100);
+  assert.equal(b43.rows[0]?.additionValue, 0);
+  assert.equal(toHtml(b43).includes("প্রতিষ্ঠানের নাম"), true);
 });

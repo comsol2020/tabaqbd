@@ -18,9 +18,11 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    6.1 book is published); never ask the operator to register an importer.
 2. Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
    what was saved so the operator can verify the scan reading.
-3. **Mushak 4.3 (সহগ ঘোষণা)**: published with every bill of entry save. Declared
-   unit price = unit cost x (1 + addition%), where cost = AV + CD + RD + SD + AIT.
-   Report it to the operator after each save.
+3. **Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা)**: published with every bill of entry save.
+   Input = the imported goods at unit cost (AV + CD + RD + SD + AIT, per unit);
+   value addition = the typed %; declared unit price = their sum. Report it
+   after each save, and tell the operator when a warning says a unit cost moved
+   more than 7.5% (a new 4.3 declaration is then required).
 4. **Customers**: `import_customers` with the list the operator gives. Without
    a BIN it updates the shared master list that new importers start with.
 5. **Sales round**: the operator gives the importer, the purchase line,

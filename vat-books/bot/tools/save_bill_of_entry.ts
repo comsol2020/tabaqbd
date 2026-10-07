@@ -87,6 +87,17 @@ export default defineTool({
       }
       const pct = it.valueAdditionPct ?? boe.valueAdditionPct;
       const price = declaredPrice(it, pct);
+      const prev = [...doc.purchases]
+        .reverse()
+        .find((p) => (it.hsCode && p.hsCode === it.hsCode) || p.description === it.description);
+      if (prev && prev.unitCost > 0) {
+        const change = (price.unitCost - prev.unitCost) / prev.unitCost;
+        if (Math.abs(change) > 0.075) {
+          warnings.push(
+            `Item ${i + 1}: unit cost moved ${(change * 100).toFixed(1)}% from ${prev.unitCost} (${prev.boeNo}). Mushak 4.3 note 2: a change of more than 7.5% needs a new declaration.`,
+          );
+        }
+      }
       return {
         lineId: `${boeKey}#${i + 1}`,
         boeKey,

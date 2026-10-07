@@ -11,6 +11,7 @@ export type Book = {
   importer: { bin: string; name: string };
   columns: Column[];
   rows: Record<string, string | number>[];
+  meta?: Record<string, string>;
   totals: Record<string, number>;
 };
 
@@ -33,18 +34,20 @@ const COLS_61: Column[] = [
   { key: "at", bn: "অগ্রিম কর (AT)", en: "AT" },
 ];
 
+// Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা) columns (1)-(12), read from the official form.
 const COLS_43: Column[] = [
-  { key: "serial", bn: "ক্রমিক", en: "Serial" },
-  { key: "boeNo", bn: "বিল অব এন্ট্রি নং", en: "Bill of entry no." },
-  { key: "boeDate", bn: "তারিখ", en: "Date" },
-  { key: "description", bn: "পণ্যের বিবরণ", en: "Description" },
-  { key: "hsCode", bn: "এইচ.এস. কোড", en: "HS code" },
-  { key: "unit", bn: "একক", en: "Unit" },
-  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
-  { key: "costValue", bn: "মোট ক্রয়মূল্য", en: "Total cost" },
-  { key: "unitCost", bn: "একক ক্রয়মূল্য", en: "Unit cost" },
-  { key: "additionPct", bn: "মূল্য সংযোজন %", en: "Value addition %" },
-  { key: "declaredUnitPrice", bn: "ঘোষিত একক বিক্রয়মূল্য", en: "Declared unit price" },
+  { key: "serial", bn: "ক্রমিক সংখ্যা", en: "Serial" },
+  { key: "hsCode", bn: "পণ্যের এইচ এস কোড/সেবা কোড", en: "HS code / service code" },
+  { key: "description", bn: "সরবরাহতব্য পণ্য/সেবার নাম ও বর্ণনা (প্রযোজ্য ক্ষেত্রে ব্র্যান্ড নামসহ)", en: "Name and description of supplied goods" },
+  { key: "unit", bn: "সরবরাহের একক", en: "Unit of supply" },
+  { key: "inputDescription", bn: "উপকরণের বিবরণ", en: "Input description" },
+  { key: "inputQty", bn: "অপচয়সহ পরিমাণ", en: "Quantity incl. wastage" },
+  { key: "inputValue", bn: "ক্রয় মূল্য", en: "Purchase value" },
+  { key: "wasteQty", bn: "অপচয়ের পরিমাণ", en: "Wastage quantity" },
+  { key: "wastePct", bn: "শতকরা হার", en: "Wastage %" },
+  { key: "additionHead", bn: "মূল্য সংযোজনের খাত", en: "Value addition head" },
+  { key: "additionValue", bn: "মূল্য", en: "Value addition" },
+  { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
 ];
 
 const COLS_62: Column[] = [
@@ -98,15 +101,30 @@ export function buildBook(
   if (form === "4.3") {
     const rows = doc.purchases
       .filter((p) => inRange(p.boeDate))
-      .map((p, i) => ({ ...p, serial: i + 1 }));
+      .map((p, i) => ({
+        serial: i + 1,
+        hsCode: p.hsCode ?? "",
+        description: p.description,
+        unit: p.unit,
+        inputDescription: `${p.description} (বিল অব এন্ট্রি ${p.boeNo})`,
+        inputQty: 1,
+        inputValue: p.unitCost,
+        wasteQty: 0,
+        wastePct: 0,
+        additionHead: `মূল্য সংযোজন ${p.additionPct}%`,
+        additionValue: Math.round((p.declaredUnitPrice - p.unitCost) * 100) / 100,
+        remarks: `ঘোষিত একক মূল্য ${p.declaredUnitPrice}`,
+      }));
+    const firstSupply = doc.invoices.map((i) => i.issueDate).sort()[0] ?? "";
     return {
       form,
-      titleBn: "মূসক-৪.৩ সহগ ঘোষণা",
-      titleEn: "Mushak 4.3 Coefficient Declaration",
+      titleBn: "মূসক-৪.৩ উপকরণ-উৎপাদ সহগ ঘোষণা",
+      titleEn: "Mushak 4.3 Input-Output Coefficient Declaration",
       importer,
       columns: COLS_43,
-      rows: rows as unknown as Book["rows"],
-      totals: sum(rows, ["costValue"]),
+      rows,
+      meta: { address: doc.address ?? "", firstSupply },
+      totals: {},
     };
   }
   if (form === "6.1") {
@@ -184,6 +202,18 @@ export function toHtml(book: Book): string {
   const wrap = (body: string) =>
     `<!doctype html><html lang="bn"><head><meta charset="utf-8"><title>${esc(book.titleEn)}</title>${style}</head><body>${head}${body}</body></html>`;
 
+  if (book.form === "4.3") {
+    const th = book.columns.map((c, i) => `<th>(${i + 1})<br>${esc(c.bn)}</th>`).join("");
+    const trs = book.rows
+      .map(
+        (r) =>
+          `<tr>${book.columns.map((c) => `<td${typeof r[c.key] === "number" ? ' class="num"' : ""}>${esc(r[c.key])}</td>`).join("")}</tr>`,
+      )
+      .join("");
+    const info = `<p>প্রতিষ্ঠানের নাম: ${esc(book.importer.name)}<br>ঠিকানা: ${esc(book.meta?.address)}<br>বিন: ${esc(book.importer.bin)}<br>দাখিলের তারিখ: ________<br>ঘোষিত সহগ অনুযায়ী পণ্য/সেবার প্রথম সরবরাহের তারিখ: ${esc(book.meta?.firstSupply)}</p>`;
+    const foot = `<p style="text-align:right">প্রতিষ্ঠান কর্তৃপক্ষের দায়িত্বপ্রাপ্ত ব্যক্তির নাম: ________<br>পদবী: ________<br>স্বাক্ষর: ________<br>সীল: ________</p><p style="font-size:11px">বিশেষ দ্রষ্টব্য: ১। যেকোন পণ্য বা সেবা প্রথম সরবরাহের পূর্ববর্তী ১৫ দিনের মধ্যে অনলাইনে মূসক কম্পিউটার সিস্টেমে বা সংশ্লিষ্ট বিভাগীয় কর্মকর্তার দপ্তরে উপকরণ-উৎপাদ সহগ ঘোষণা দাখিল করিতে হইবে। ২। পণ্য মূল্য বা মোট উপকরণ/কাঁচামালের মূল্য ৭.৫% এর বেশী পরিবর্তন হইলে নতুন ঘোষণা দাখিল করিতে হইবে। ৩। উপকরণ ক্রয়ের স্বপক্ষে প্রামাণিক দলিল হিসাবে বিল অব এন্ট্রি বা চালানপত্রের কপি সংযুক্ত করিতে হইবে।</p>`;
+    return wrap(`${info}<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>${foot}`);
+  }
   if (book.form === "6.3") {
     const th63 = book.columns.map((c) => `<th>${esc(c.bn)}</th>`).join("");
     const cards = book.rows
