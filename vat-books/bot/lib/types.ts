@@ -25,6 +25,10 @@ export type PurchaseLine = {
   vat: number;
   ait: number;
   at: number;
+  additionPct: number;
+  costValue: number;
+  unitCost: number;
+  declaredUnitPrice: number;
 };
 
 export type Invoice = {

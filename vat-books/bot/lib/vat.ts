@@ -119,3 +119,19 @@ export function selectCustomers(
 export function dutyTotal(items: { cd: number; rd: number; sd: number; vat: number; ait: number; at: number }[]): number {
   return round2(items.reduce((s, i) => s + i.cd + i.rd + i.sd + i.vat + i.ait + i.at, 0));
 }
+
+export type Coefficient = { costValue: number; unitCost: number; declaredUnitPrice: number };
+
+/**
+ * Mushak 4.3 declared price. Cost is what the importer cannot recover:
+ * assessable value + CD + RD + SD + AIT. VAT and AT are adjustable and stay out.
+ */
+export function declaredPrice(
+  item: { assessableValue: number; cd: number; rd: number; sd: number; ait: number; quantity: number },
+  additionPct: number,
+): Coefficient {
+  const costValue = round2(item.assessableValue + item.cd + item.rd + item.sd + item.ait);
+  const unitCost = round2(costValue / item.quantity);
+  const declaredUnitPrice = round2(unitCost * (1 + additionPct / 100));
+  return { costValue, unitCost, declaredUnitPrice };
+}

@@ -5,7 +5,6 @@ export type SalesRequest = {
   lineId: string;
   count: number;
   quantityPerSale: number;
-  unitPrice: number;
   issueDate: string;
   vatRate?: number;
   sdRate?: number;
@@ -32,7 +31,6 @@ export function soldQuantity(doc: ImporterDoc, lineId: string): number {
 export function planSales(doc: ImporterDoc, req: SalesRequest): SalesPlan {
   if (!isIsoDate(req.issueDate)) throw new Error("issueDate must be YYYY-MM-DD");
   if (!(req.quantityPerSale > 0)) throw new Error("quantityPerSale must be positive");
-  if (!(req.unitPrice > 0)) throw new Error("unitPrice must be positive");
   const line = doc.purchases.find((p) => p.lineId === req.lineId);
   if (!line) throw new Error(`Unknown purchase line ${req.lineId}`);
   if (req.issueDate < line.boeDate) {
@@ -46,10 +44,11 @@ export function planSales(doc: ImporterDoc, req: SalesRequest): SalesPlan {
     );
   }
   const selection = selectCustomers(doc.customers, doc.rotation, req.count);
+  const unitPrice = line.declaredUnitPrice;
   const vatRate = req.vatRate ?? 15;
   const sdRate = req.sdRate ?? 0;
   const sales = selection.selected.map((c): PlannedSale => {
-    const amounts = computeSale(req.quantityPerSale, req.unitPrice, vatRate, sdRate);
+    const amounts = computeSale(req.quantityPerSale, unitPrice, vatRate, sdRate);
     return {
       issueDate: req.issueDate,
       lineId: line.lineId,
@@ -61,7 +60,7 @@ export function planSales(doc: ImporterDoc, req: SalesRequest): SalesPlan {
       hsCode: line.hsCode,
       unit: line.unit,
       quantity: req.quantityPerSale,
-      unitPrice: req.unitPrice,
+      unitPrice,
       value: amounts.value,
       sdRate,
       sd: amounts.sd,

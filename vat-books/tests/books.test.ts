@@ -12,6 +12,7 @@ import {
 import type { ImporterDoc } from "../bot/lib/types.js";
 import {
   computeSale,
+  declaredPrice,
   dutyTotal,
   impliedImportVatRate,
   normalizeBin,
@@ -36,6 +37,10 @@ function fixture(customerCount = 7): ImporterDoc {
     vat: 78750,
     ait: 25000,
     at: 0,
+    additionPct: 10,
+    costValue: 100000,
+    unitCost: 100,
+    declaredUnitPrice: 100,
   });
   for (let i = 1; i <= customerCount; i++) {
     doc.customers.push({ id: `name:c${i}`, name: `C${i}`, address: `Addr ${i}` });
@@ -47,7 +52,6 @@ const req = {
   lineId: "B1|2026-01-05#1",
   count: 3,
   quantityPerSale: 10,
-  unitPrice: 100,
   issueDate: "2026-02-01",
 };
 
@@ -136,4 +140,23 @@ test("a new importer inherits the shared customer list", async () => {
   assert.equal(doc.customers.length, 1);
   await saveImporter(kv, doc);
   assert.deepEqual(await listBins(kv), ["1234567890123"]);
+});
+
+test("4.3 declared price: cost excludes VAT and AT, addition applied per unit", () => {
+  const p = declaredPrice(
+    { assessableValue: 41087.94, cd: 2054.4, rd: 0, sd: 4314.23, ait: 2054.4, quantity: 25500 },
+    10,
+  );
+  assert.equal(p.costValue, 49510.97);
+  assert.equal(p.unitCost, 1.94);
+  assert.equal(p.declaredUnitPrice, 2.13);
+});
+
+test("sales use the 4.3 declared price and the 4.3 book renders", () => {
+  const doc = fixture();
+  const plan = planSales(doc, req);
+  assert.equal(plan.sales[0]?.unitPrice, 100);
+  const b43 = buildBook(doc, "4.3");
+  assert.equal(b43.rows[0]?.declaredUnitPrice, 100);
+  assert.equal(b43.rows[0]?.additionPct, 10);
 });

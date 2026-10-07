@@ -9,7 +9,7 @@ import { salesInput } from "../lib/schemas.js";
 export default defineTool({
   description: prompt`
     Preview a sales round without saving anything: which customers the
-    rotation picks, the amounts for each Mushak 6.3 challan, and the stock
+    rotation picks, the unit price (the Mushak 4.3 declared price of that purchase line, never anything else), the amounts for each Mushak 6.3 challan, and the stock
     left. Customers served in the previous round are skipped. Always show
     this to the user and get approval before confirm_sales.
   `,
@@ -21,6 +21,8 @@ export default defineTool({
     return {
       importer: doc.name,
       line: plan.line.lineId,
+      unitPrice: plan.line.declaredUnitPrice,
+      additionPct: plan.line.additionPct,
       remainingBefore: plan.remainingBefore,
       remainingAfter: plan.remainingAfter,
       excludedPreviousRound: plan.excludedPreviousRound,

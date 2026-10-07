@@ -1,6 +1,6 @@
 import type { ImporterDoc } from "./types.js";
 
-export type FormId = "6.1" | "6.2" | "6.3";
+export type FormId = "4.3" | "6.1" | "6.2" | "6.3";
 
 export type Column = { key: string; bn: string; en: string };
 
@@ -31,6 +31,20 @@ const COLS_61: Column[] = [
   { key: "vat", bn: "মূসক (VAT)", en: "VAT" },
   { key: "ait", bn: "অগ্রিম আয়কর (AIT)", en: "AIT" },
   { key: "at", bn: "অগ্রিম কর (AT)", en: "AT" },
+];
+
+const COLS_43: Column[] = [
+  { key: "serial", bn: "ক্রমিক", en: "Serial" },
+  { key: "boeNo", bn: "বিল অব এন্ট্রি নং", en: "Bill of entry no." },
+  { key: "boeDate", bn: "তারিখ", en: "Date" },
+  { key: "description", bn: "পণ্যের বিবরণ", en: "Description" },
+  { key: "hsCode", bn: "এইচ.এস. কোড", en: "HS code" },
+  { key: "unit", bn: "একক", en: "Unit" },
+  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
+  { key: "costValue", bn: "মোট ক্রয়মূল্য", en: "Total cost" },
+  { key: "unitCost", bn: "একক ক্রয়মূল্য", en: "Unit cost" },
+  { key: "additionPct", bn: "মূল্য সংযোজন %", en: "Value addition %" },
+  { key: "declaredUnitPrice", bn: "ঘোষিত একক বিক্রয়মূল্য", en: "Declared unit price" },
 ];
 
 const COLS_62: Column[] = [
@@ -75,6 +89,20 @@ export function buildBook(
   const inRange = (d: string) =>
     (!range.from || d >= range.from) && (!range.to || d <= range.to);
 
+  if (form === "4.3") {
+    const rows = doc.purchases
+      .filter((p) => inRange(p.boeDate))
+      .map((p, i) => ({ ...p, serial: i + 1 }));
+    return {
+      form,
+      titleBn: "মূসক-৪.৩ সহগ ঘোষণা",
+      titleEn: "Mushak 4.3 Coefficient Declaration",
+      importer,
+      columns: COLS_43,
+      rows: rows as unknown as Book["rows"],
+      totals: sum(rows, ["costValue"]),
+    };
+  }
   if (form === "6.1") {
     const rows = doc.purchases
       .filter((p) => inRange(p.boeDate))

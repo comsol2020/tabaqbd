@@ -7,13 +7,13 @@ import { normalizeBin } from "../lib/vat.js";
 
 export default defineTool({
   description: prompt`
-    Read an importer's business book as rows with totals: 6.1 purchase book,
-    6.2 sales book, or 6.3 challans. Optionally filter by date range.
+    Read an importer's business book as rows with totals: 4.3 coefficient declaration,
+    6.1 purchase book, 6.2 sales book, or 6.3 challans. Optionally filter by date range.
   `,
   effect: "read",
   inputSchema: z.object({
     bin: z.string(),
-    form: z.enum(["6.1", "6.2", "6.3"]),
+    form: z.enum(["4.3", "6.1", "6.2", "6.3"]),
     from: z.string().optional().describe("YYYY-MM-DD"),
     to: z.string().optional().describe("YYYY-MM-DD"),
   }),

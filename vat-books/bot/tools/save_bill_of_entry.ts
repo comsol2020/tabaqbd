@@ -4,7 +4,7 @@ import { z } from "zod";
 import { publishBooks } from "../lib/publish.js";
 import { createImporter, loadImporter, saveImporter } from "../lib/store.js";
 import type { PurchaseLine } from "../lib/types.js";
-import { dutyTotal, impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
+import { declaredPrice, dutyTotal, impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
 
 const money = z.number().min(0);
 
@@ -13,7 +13,7 @@ export default defineTool({
     Save one bill of entry that you have already read from an uploaded scan,
     and add its lines to the importer's Mushak 6.1 purchase book. A BIN seen
     for the first time gets its books created automatically from the BIN and
-    name on the document, and the 6.1 book is published as CSV and HTML, so
+    name on the document, and the 4.3 and 6.1 books are published as CSV and HTML, so
     never ask the operator to register an importer separately. Saving the same
     bill of entry number and date again changes nothing. Pass money exactly as
     printed, in BDT, as plain numbers.
@@ -30,6 +30,11 @@ export default defineTool({
       date: z.string().describe("YYYY-MM-DD"),
       customsHouse: z.string().optional(),
       supplierName: z.string().optional(),
+      valueAdditionPct: z
+        .number()
+        .min(0)
+        .max(1000)
+        .describe("Mushak 4.3 value addition % typed by the operator for this bill of entry. Ask for it if not given; never invent one"),
       declaredTotalTax: z
         .number()
         .optional()
@@ -48,6 +53,7 @@ export default defineTool({
             vat: money,
             ait: money.default(0),
             at: money.default(0),
+            valueAdditionPct: z.number().min(0).max(1000).optional().describe("Overrides the bill of entry level % for this item"),
           }),
         )
         .min(1),
@@ -79,6 +85,8 @@ export default defineTool({
           `Item ${i + 1}: VAT implies ${rate}% of (AV+CD+RD+SD), which is not a usual rate. Re-check the scan.`,
         );
       }
+      const pct = it.valueAdditionPct ?? boe.valueAdditionPct;
+      const price = declaredPrice(it, pct);
       return {
         lineId: `${boeKey}#${i + 1}`,
         boeKey,
@@ -98,6 +106,8 @@ export default defineTool({
         vat: it.vat,
         ait: it.ait,
         at: it.at,
+        additionPct: pct,
+        ...price,
       };
     });
     if (boe.declaredTotalTax !== undefined) {
@@ -110,13 +120,14 @@ export default defineTool({
     }
     doc.purchases.push(...lines);
     await saveImporter(kv, doc);
-    const published = await publishBooks(ctx.artifacts, doc, ["6.1"]);
+    const published = await publishBooks(ctx.artifacts, doc, ["4.3", "6.1"]);
     return {
       saved: true,
       duplicate: false,
       newImporter: isNewImporter,
       customersInherited: isNewImporter ? doc.customers.length : undefined,
       published,
+      declaredUnitPrices: lines.map((l) => ({ lineId: l.lineId, additionPct: l.additionPct, unitCost: l.unitCost, declaredUnitPrice: l.declaredUnitPrice })),
       bin,
       importerName: doc.name,
       lineIds: lines.map((l) => l.lineId),
