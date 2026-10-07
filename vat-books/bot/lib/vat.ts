@@ -115,3 +115,7 @@ export function selectCustomers(
     warnings,
   };
 }
+
+export function dutyTotal(items: { cd: number; rd: number; sd: number; vat: number; ait: number; at: number }[]): number {
+  return round2(items.reduce((s, i) => s + i.cd + i.rd + i.sd + i.vat + i.ait + i.at, 0));
+}

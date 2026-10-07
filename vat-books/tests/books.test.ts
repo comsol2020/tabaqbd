@@ -4,7 +4,13 @@ import { buildBook, toCsv } from "../bot/lib/forms.js";
 import { confirmSales, planSales } from "../bot/lib/sales.js";
 import { newImporter } from "../bot/lib/store.js";
 import type { ImporterDoc } from "../bot/lib/types.js";
-import { computeSale, normalizeBin, selectCustomers } from "../bot/lib/vat.js";
+import {
+  computeSale,
+  dutyTotal,
+  impliedImportVatRate,
+  normalizeBin,
+  selectCustomers,
+} from "../bot/lib/vat.js";
 
 function fixture(customerCount = 7): ImporterDoc {
   const doc = newImporter("1234567890123", "Test Importer Ltd");
@@ -96,4 +102,18 @@ test("books render from the same data", () => {
   assert.equal(b62.totals.vat, 450);
   assert.equal(buildBook(doc, "6.3").rows[0]?.challanNo, "1234567890123-000001");
   assert.ok(toCsv(b62).startsWith("\uFEFF"));
+});
+
+test("real Tamabil bill of entry: duties reconcile with the printed total", () => {
+  const item = {
+    assessableValue: 41087.94,
+    cd: 2054.4,
+    rd: 0,
+    sd: 4314.23,
+    vat: 7118.49,
+    ait: 2054.4,
+    at: 3559.24,
+  };
+  assert.equal(impliedImportVatRate(item), 15);
+  assert.equal(dutyTotal([item]), 19100.76);
 });

@@ -3,7 +3,7 @@ import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
 import { loadImporter, newImporter, saveImporter } from "../lib/store.js";
 import type { PurchaseLine } from "../lib/types.js";
-import { impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
+import { dutyTotal, impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
 
 const money = z.number().min(0);
 
@@ -27,6 +27,10 @@ export default defineTool({
       date: z.string().describe("YYYY-MM-DD"),
       customsHouse: z.string().optional(),
       supplierName: z.string().optional(),
+      declaredTotalTax: z
+        .number()
+        .optional()
+        .describe("The 'Total' printed under the tax table (CD+RD+SD+VAT+AIT+AT), used to cross-check the reading"),
       items: z
         .array(
           z.object({
@@ -91,6 +95,14 @@ export default defineTool({
         at: it.at,
       };
     });
+    if (boe.declaredTotalTax !== undefined) {
+      const computed = dutyTotal(boe.items);
+      if (Math.abs(computed - boe.declaredTotalTax) > 1) {
+        warnings.push(
+          `Duties add up to ${computed} but the document total is ${boe.declaredTotalTax}. A figure was probably misread. Re-check the scan before relying on this book.`,
+        );
+      }
+    }
     doc.purchases.push(...lines);
     await saveImporter(kv, doc);
     return {
