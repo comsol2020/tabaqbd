@@ -62,22 +62,28 @@ const COLS_62: Column[] = [
   { key: "total", bn: "মোট", en: "Total" },
 ];
 
+// Mushak 6.3 line-item table. Bengali headings reconstructed from the official sample
+// PDF, whose text layer is lost; widths and word lengths were matched column by column.
 const COLS_63: Column[] = [
+  { key: "lineNo", bn: "ক্রমিক", en: "Serial" },
+  { key: "description", bn: "পণ্য/সেবার বর্ণনা", en: "Description of goods/services" },
+  { key: "unit", bn: "সরবরাহের একক", en: "Unit of supply" },
+  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
+  { key: "unitPrice", bn: "একক মূল্য (টাকা)", en: "Unit price (BDT)" },
+  { key: "value", bn: "মোট মূল্য (টাকা)", en: "Total value (BDT)" },
+  { key: "sdRate", bn: "সম্পূরক শুল্কের হার", en: "SD rate" },
+  { key: "sd", bn: "সম্পূরক শুল্কের পরিমাণ", en: "SD amount" },
+  { key: "vatRate", bn: "VAT/সুনির্দিষ্ট কর হার", en: "VAT/specific tax rate" },
+  { key: "vat", bn: "VAT/সুনির্দিষ্ট করের পরিমাণ", en: "VAT/specific tax amount" },
+  { key: "total", bn: "সকল শুল্ক ও করসহ মূল্য", en: "Value including all duties and taxes" },
+];
+
+export const CHALLAN_HEADER: Column[] = [
   { key: "challanNo", bn: "চালান নং", en: "Challan no." },
   { key: "issueDate", bn: "ইস্যুর তারিখ", en: "Issue date" },
   { key: "buyerName", bn: "ক্রেতার নাম", en: "Buyer" },
   { key: "buyerBinNid", bn: "ক্রেতার বিআইএন/এনআইডি", en: "Buyer BIN/NID" },
   { key: "deliveryAddress", bn: "সরবরাহের ঠিকানা", en: "Delivery address" },
-  { key: "description", bn: "পণ্যের বিবরণ", en: "Description" },
-  { key: "hsCode", bn: "এইচ.এস. কোড", en: "HS code" },
-  { key: "unit", bn: "একক", en: "Unit" },
-  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
-  { key: "unitPrice", bn: "একক মূল্য", en: "Unit price" },
-  { key: "value", bn: "মূল্য (কর ব্যতীত)", en: "Value excl. tax" },
-  { key: "sd", bn: "সম্পূরক শুল্ক", en: "SD" },
-  { key: "vatRate", bn: "মূসক হার %", en: "VAT rate %" },
-  { key: "vat", bn: "মূসক", en: "VAT" },
-  { key: "total", bn: "মোট", en: "Total" },
 ];
 
 export function buildBook(
@@ -130,13 +136,14 @@ export function buildBook(
       totals: sum(rows, ["quantity", "value", "sd", "vat", "total"]),
     };
   }
+  const lines = invoices.map((i) => ({ ...i, lineNo: 1 }));
   return {
     form,
     titleBn: "মূসক-৬.৩ কর চালানপত্র",
     titleEn: "Mushak 6.3 Tax Invoice (Challan)",
     importer,
     columns: COLS_63,
-    rows: invoices as unknown as Book["rows"],
+    rows: lines as unknown as Book["rows"],
     totals: sum(invoices, ["value", "sd", "vat", "total"]),
   };
 }
@@ -158,8 +165,9 @@ const csvCell = (v: unknown) => {
 };
 
 export function toCsv(book: Book): string {
-  const header = book.columns.map((c) => csvCell(`${c.bn} / ${c.en}`)).join(",");
-  const lines = book.rows.map((r) => book.columns.map((c) => csvCell(r[c.key])).join(","));
+  const cols = book.form === "6.3" ? [...CHALLAN_HEADER, ...book.columns] : book.columns;
+  const header = cols.map((c) => csvCell(`${c.bn} / ${c.en}`)).join(",");
+  const lines = book.rows.map((r) => cols.map((c) => csvCell(r[c.key])).join(","));
   return `\uFEFF${[header, ...lines].join("\r\n")}\r\n`;
 }
 
@@ -177,12 +185,22 @@ export function toHtml(book: Book): string {
     `<!doctype html><html lang="bn"><head><meta charset="utf-8"><title>${esc(book.titleEn)}</title>${style}</head><body>${head}${body}</body></html>`;
 
   if (book.form === "6.3") {
+    const th63 = book.columns.map((c) => `<th>${esc(c.bn)}</th>`).join("");
     const cards = book.rows
       .map((r) => {
-        const body = book.columns
-          .map((c) => `<tr><th>${esc(c.bn)}</th><td>${esc(r[c.key])}</td></tr>`)
+        const meta = CHALLAN_HEADER.map(
+          (c) => `<tr><th style="width:180px">${esc(c.bn)}</th><td>${esc(r[c.key])}</td></tr>`,
+        ).join("");
+        const cells = book.columns.map((c) => `<td class="num">${esc(r[c.key])}</td>`).join("");
+        const tot = book.columns
+          .map((c, i) => {
+            if (i === 1) return "<td><b>মোট</b></td>";
+            return ["value", "sd", "vat", "total"].includes(c.key)
+              ? `<td class="num"><b>${esc(r[c.key])}</b></td>`
+              : "<td></td>";
+          })
           .join("");
-        return `<table style="margin-bottom:24px;page-break-inside:avoid">${body}</table>`;
+        return `<section style="margin-bottom:28px;page-break-inside:avoid"><h2>মূসক-৬.৩ কর চালানপত্র</h2><p>বিক্রেতা: ${esc(book.importer.name)} &mdash; BIN ${esc(book.importer.bin)}</p><table style="width:auto;margin-bottom:8px">${meta}</table><table><thead><tr>${th63}</tr></thead><tbody><tr>${cells}</tr><tr>${tot}</tr></tbody></table></section>`;
       })
       .join("");
     return wrap(cards);
