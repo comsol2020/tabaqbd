@@ -1,0 +1,19 @@
+{
+  "name": "vat-books",
+  "private": true,
+  "type": "module",
+  "description": "agent project: vat-books",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "dev": "bdk dev",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@cursor/bdk": "^0.2.21",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "6.0.3"
+  }
+}
