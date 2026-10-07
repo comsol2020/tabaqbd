@@ -1,21 +1,27 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
-import { loadImporter, newImporter, saveImporter } from "../lib/store.js";
+import {
+  loadImporter,
+  loadSharedCustomers,
+  saveImporter,
+  saveSharedCustomers,
+} from "../lib/store.js";
 import type { Customer } from "../lib/types.js";
 import { customerKey, normalizeBin } from "../lib/vat.js";
 
 export default defineTool({
   description: prompt`
-    Add customers to an importer's customer list. Customers already on the
-    list (same BIN, else same NID, else same name) are skipped, so the call
-    is safe to repeat. Order is preserved because it is the tie-break for
-    rotation.
+    Add customers to a customer list. With a bin, the list belongs to that
+    importer. Without a bin, it is the shared master list that every importer
+    created afterwards starts with (existing importers are not changed).
+    Customers already on the list (same BIN, else same NID, else same name)
+    are skipped, so the call is safe to repeat. Order is preserved because it
+    is the tie-break for rotation.
   `,
   effect: "write",
   inputSchema: z.object({
-    bin: z.string(),
-    importerName: z.string().optional().describe("Only needed if the importer does not exist yet"),
+    bin: z.string().optional().describe("Omit to update the shared master list"),
     customers: z
       .array(
         z.object({
@@ -28,15 +34,14 @@ export default defineTool({
       .min(1),
   }),
   dryRunResult: () => ({ added: 0 }),
-  async execute({ bin: rawBin, importerName, customers }, ctx) {
-    const bin = normalizeBin(rawBin);
+  async execute({ bin: rawBin, customers }, ctx) {
     const kv = ctx.host.kv;
-    let doc = await loadImporter(kv, bin);
-    if (!doc) {
-      if (!importerName) throw new Error(`No importer ${bin}; pass importerName or save a bill of entry first.`);
-      doc = newImporter(bin, importerName);
+    const doc = rawBin ? await loadImporter(kv, normalizeBin(rawBin)) : undefined;
+    if (rawBin && !doc) {
+      throw new Error(`No importer ${rawBin} yet. Save its bill of entry first (that creates it).`);
     }
-    const have = new Set(doc.customers.map((c) => c.id));
+    const list: Customer[] = doc ? doc.customers : await loadSharedCustomers(kv);
+    const have = new Set(list.map((c) => c.id));
     let added = 0;
     for (const c of customers) {
       const id = customerKey(c);
@@ -45,10 +50,16 @@ export default defineTool({
       const entry: Customer = { id, name: c.name.trim(), address: c.address };
       if (c.bin) entry.bin = c.bin;
       if (c.nid) entry.nid = c.nid;
-      doc.customers.push(entry);
+      list.push(entry);
       added += 1;
     }
-    await saveImporter(kv, doc);
-    return { bin, added, skipped: customers.length - added, total: doc.customers.length };
+    if (doc) await saveImporter(kv, doc);
+    else await saveSharedCustomers(kv, list);
+    return {
+      list: doc ? doc.bin : "shared",
+      added,
+      skipped: customers.length - added,
+      total: list.length,
+    };
   },
 });

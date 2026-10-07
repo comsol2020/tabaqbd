@@ -1,7 +1,8 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
-import { loadImporter, newImporter, saveImporter } from "../lib/store.js";
+import { publishBooks } from "../lib/publish.js";
+import { createImporter, loadImporter, saveImporter } from "../lib/store.js";
 import type { PurchaseLine } from "../lib/types.js";
 import { dutyTotal, impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
 
@@ -10,8 +11,10 @@ const money = z.number().min(0);
 export default defineTool({
   description: prompt`
     Save one bill of entry that you have already read from an uploaded scan,
-    and add its lines to the importer's Mushak 6.1 purchase book. The importer
-    is created from its BIN and name if it does not exist yet. Saving the same
+    and add its lines to the importer's Mushak 6.1 purchase book. A BIN seen
+    for the first time gets its books created automatically from the BIN and
+    name on the document, and the 6.1 book is published as CSV and HTML, so
+    never ask the operator to register an importer separately. Saving the same
     bill of entry number and date again changes nothing. Pass money exactly as
     printed, in BDT, as plain numbers.
   `,
@@ -56,7 +59,9 @@ export default defineTool({
     if (!isIsoDate(boe.date)) throw new Error(`boe.date must be YYYY-MM-DD, got "${boe.date}"`);
     const kv = ctx.host.kv;
     const boeKey = `${boe.number.trim()}|${boe.date}`;
-    const doc = (await loadImporter(kv, bin)) ?? newImporter(bin, importer.name.trim(), importer.address);
+    const existing = await loadImporter(kv, bin);
+    const isNewImporter = !existing;
+    const doc = existing ?? (await createImporter(kv, bin, importer.name.trim(), importer.address));
     const warnings: string[] = [];
     if (doc.name.trim().toLowerCase() !== importer.name.trim().toLowerCase()) {
       warnings.push(
@@ -105,9 +110,13 @@ export default defineTool({
     }
     doc.purchases.push(...lines);
     await saveImporter(kv, doc);
+    const published = await publishBooks(ctx.artifacts, doc, ["6.1"]);
     return {
       saved: true,
       duplicate: false,
+      newImporter: isNewImporter,
+      customersInherited: isNewImporter ? doc.customers.length : undefined,
+      published,
       bin,
       importerName: doc.name,
       lineIds: lines.map((l) => l.lineId),

@@ -1,6 +1,7 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
+import { publishBooks } from "../lib/publish.js";
 import { confirmSales } from "../lib/sales.js";
 import { requireImporter, saveImporter } from "../lib/store.js";
 import { salesInput } from "../lib/schemas.js";
@@ -23,7 +24,9 @@ export default defineTool({
     const bin = normalizeBin(rawBin);
     const doc = await requireImporter(ctx.host.kv, bin);
     const result = confirmSales(doc, req, requestId);
-    if (!result.duplicate) await saveImporter(ctx.host.kv, doc);
-    return { bin, ...result };
+    if (result.duplicate) return { bin, ...result };
+    await saveImporter(ctx.host.kv, doc);
+    const published = await publishBooks(ctx.artifacts, doc, ["6.2", "6.3"]);
+    return { bin, ...result, published };
   },
 });

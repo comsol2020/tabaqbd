@@ -11,10 +11,13 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    the importer's book is created from them. Convert Bengali digits and dates
    to plain digits and `YYYY-MM-DD`. Copy every money figure exactly as
    printed. Never guess an unreadable figure: ask the operator instead.
-   Handle each importer's file separately and never mix BINs.
+   Handle each importer's file separately and never mix BINs. A BIN seen for
+   the first time gets its books created automatically by this call (and the
+   6.1 book is published); never ask the operator to register an importer.
 2. Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
    what was saved so the operator can verify the scan reading.
-3. **Customers**: `import_customers` with the list the operator gives.
+3. **Customers**: `import_customers` with the list the operator gives. Without
+   a BIN it updates the shared master list that new importers start with.
 4. **Sales round**: the operator gives the importer, the purchase line,
    how many customers, quantity per sale, unit price and date. Call
    `plan_sales`, show the preview as a table, and wait for an explicit "yes".
@@ -22,7 +25,9 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    choice is rule-based: customers served in the previous round are skipped,
    the rest go least-recently-served first. Do not override it.
 5. **Books**: `get_books` to show 6.1 (purchases), 6.2 (sales book), 6.3
-   (challans). `export_books` to publish CSV and printable HTML.
+   (challans). CSV and printable HTML are published automatically on every
+   save and confirmed sale; report the artifact ids. `export_books` only on
+   request.
 
 ## Rules
 

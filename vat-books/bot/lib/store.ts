@@ -1,10 +1,11 @@
 import type { ToolContext } from "@cursor/bdk/tools";
-import type { ImporterDoc } from "./types.js";
+import type { Customer, ImporterDoc } from "./types.js";
 
 export type Kv = ToolContext["host"]["kv"];
 type JsonValue = Parameters<Kv["put"]>[1];
 
 const REGISTRY = "importers";
+const SHARED_CUSTOMERS = "shared:customers";
 const docKey = (bin: string) => `importer:${bin}`;
 
 export async function listBins(kv: Kv): Promise<string[]> {
@@ -41,5 +42,25 @@ export async function requireImporter(kv: Kv, bin: string): Promise<ImporterDoc>
   if (!doc) {
     throw new Error(`No importer with BIN ${bin}. Save a bill of entry for it first.`);
   }
+  return doc;
+}
+
+export async function loadSharedCustomers(kv: Kv): Promise<Customer[]> {
+  const v = await kv.get(SHARED_CUSTOMERS);
+  return Array.isArray(v) ? (v as unknown as Customer[]) : [];
+}
+
+export async function saveSharedCustomers(kv: Kv, customers: Customer[]): Promise<void> {
+  await kv.put(SHARED_CUSTOMERS, customers as unknown as JsonValue);
+}
+
+export async function createImporter(
+  kv: Kv,
+  bin: string,
+  name: string,
+  address?: string,
+): Promise<ImporterDoc> {
+  const doc = newImporter(bin, name, address);
+  doc.customers = await loadSharedCustomers(kv);
   return doc;
 }

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildBook, toCsv } from "../bot/lib/forms.js";
 import { confirmSales, planSales } from "../bot/lib/sales.js";
-import { newImporter } from "../bot/lib/store.js";
+import {
+  createImporter,
+  listBins,
+  newImporter,
+  saveImporter,
+  saveSharedCustomers,
+} from "../bot/lib/store.js";
 import type { ImporterDoc } from "../bot/lib/types.js";
 import {
   computeSale,
@@ -116,4 +122,18 @@ test("real Tamabil bill of entry: duties reconcile with the printed total", () =
   };
   assert.equal(impliedImportVatRate(item), 15);
   assert.equal(dutyTotal([item]), 19100.76);
+});
+
+test("a new importer inherits the shared customer list", async () => {
+  const map = new Map<string, unknown>();
+  const kv = {
+    get: async (k: string) => map.get(k),
+    put: async (k: string, v: unknown) => void map.set(k, v),
+    delete: async (k: string) => void map.delete(k),
+  } as unknown as Parameters<typeof createImporter>[0];
+  await saveSharedCustomers(kv, [{ id: "name:a", name: "A", address: "" }]);
+  const doc = await createImporter(kv, "1234567890123", "X Ltd");
+  assert.equal(doc.customers.length, 1);
+  await saveImporter(kv, doc);
+  assert.deepEqual(await listBins(kv), ["1234567890123"]);
 });
