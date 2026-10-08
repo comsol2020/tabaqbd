@@ -92,3 +92,41 @@ export function salesLedger(doc: ImporterDoc): SalesLedgerRow[] {
     return { invoice, opening, received, total, closing };
   });
 }
+
+export type TradeRow = {
+  kind: "purchase" | "sale";
+  date: string;
+  opening: Stock;
+  total: Stock;
+  closing: Stock;
+  purchase?: PurchaseLine;
+  invoice?: Invoice;
+};
+
+/** Mushak 6.2.1: one chronological register of purchases and sales with a running stock per product. */
+export function tradeLedger(doc: ImporterDoc): TradeRow[] {
+  type Event = { date: string; order: number; serial: number; purchase?: PurchaseLine; invoice?: Invoice };
+  const events: Event[] = [
+    ...doc.purchases.map((p) => ({ date: p.boeDate, order: 0, serial: p.serial, purchase: p })),
+    ...doc.invoices.map((i) => ({ date: i.issueDate, order: 1, serial: i.serial, invoice: i })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order || a.serial - b.serial);
+
+  const state = new Map<string, Stock>();
+  return events.map((e): TradeRow => {
+    const key = e.purchase ? productKey(e.purchase) : lineProduct(doc, e.invoice!.lineId);
+    const opening = state.get(key) ?? { qty: 0, val: 0 };
+    if (e.purchase) {
+      const total = {
+        qty: round2(opening.qty + e.purchase.quantity),
+        val: round2(opening.val + netValue(e.purchase)),
+      };
+      state.set(key, total);
+      return { kind: "purchase", date: e.date, opening, total, closing: total, purchase: e.purchase };
+    }
+    const inv = e.invoice!;
+    const outVal = opening.qty > 0 ? round2((inv.quantity * opening.val) / opening.qty) : 0;
+    const closing = { qty: round2(opening.qty - inv.quantity), val: round2(opening.val - outVal) };
+    state.set(key, closing);
+    return { kind: "sale", date: e.date, opening, total: opening, closing, invoice: inv };
+  });
+}

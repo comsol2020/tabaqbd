@@ -13,7 +13,7 @@ export default defineTool({
     Save one bill of entry that you have already read from an uploaded scan,
     and add its lines to the importer's Mushak 6.1 purchase book. A BIN seen
     for the first time gets its books created automatically from the BIN and
-    name on the document, and the 4.3 and 6.1 books are published as CSV and HTML, so
+    name on the document, and the 4.3, 6.1 and 6.2.1 books are published as CSV and HTML, so
     never ask the operator to register an importer separately. Saving the same
     bill of entry number and date again changes nothing. Pass money exactly as
     printed, in BDT, as plain numbers.
@@ -133,7 +133,7 @@ export default defineTool({
     }
     doc.purchases.push(...lines);
     await saveImporter(kv, doc);
-    const published = await publishBooks(ctx.artifacts, doc, ["4.3", "6.1"]);
+    const published = await publishBooks(ctx.artifacts, doc, ["4.3", "6.1", "6.2.1"]);
     return {
       saved: true,
       duplicate: false,

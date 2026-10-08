@@ -196,3 +196,20 @@ test("6.1 and 6.2 follow the official columns and keep a running stock", () => {
   assert.equal(b62.rows[1]?.recvQty, 0);
   assert.ok(toHtml(b62).includes("colspan"));
 });
+
+test("6.2.1 is one chronological register with 26 columns and a running stock", () => {
+  const doc = fixture();
+  confirmSales(doc, req, "req-1-xxxxxxxx");
+  const b = buildBook(doc, "6.2.1");
+  assert.equal(b.columns.length, 26);
+  assert.equal(b.rows.length, 4);
+  const [buy, s1, s2, s3] = b.rows;
+  assert.equal(buy?.buyQty, 1000);
+  assert.equal(buy?.closeQty, 1000);
+  assert.equal(s1?.openQty, 1000);
+  assert.equal(s1?.quantity, 10);
+  assert.equal(s1?.closeQty, 990);
+  assert.equal(s3?.closeQty, 970);
+  assert.equal(s2?.buyQty, "");
+  assert.ok(toHtml(b).includes("ক্রেতার তথ্য"));
+});

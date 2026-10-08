@@ -33,11 +33,11 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    Only then call `confirm_sales` with a fresh unique `requestId`. Customer
    choice is rule-based: customers served in the previous round are skipped,
    the rest go least-recently-served first. Do not override it.
-6. **Books**: 6.1 and 6.2 keep a running stock (opening, received, used/sold, closing),
-   so 6.1 is republished after every confirmed sale. `get_books` to show 4.3, 6.1 (purchases), 6.2 (sales book), 6.3
-   (challans). CSV and printable HTML are published automatically on every
-   save and confirmed sale; report the artifact ids. `export_books` only on
-   request.
+6. **Books**: 6.1, 6.2 and 6.2.1 keep a running stock, so they are republished after
+   every confirmed sale. 6.2.1 is the combined purchase-sales register for traders;
+   importers may file it instead of 6.1 + 6.2. `get_books` shows 4.3, 6.1, 6.2, 6.2.1
+   or 6.3 (challans). CSV and printable HTML are published automatically on every
+   save and confirmed sale; report the artifact ids. `export_books` only on request.
 
 ## Rules
 

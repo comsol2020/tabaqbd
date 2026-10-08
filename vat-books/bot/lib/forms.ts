@@ -1,7 +1,7 @@
-import { netValue, purchaseLedger, salesLedger } from "./ledger.js";
+import { netValue, purchaseLedger, salesLedger, tradeLedger } from "./ledger.js";
 import type { ImporterDoc } from "./types.js";
 
-export type FormId = "4.3" | "6.1" | "6.2" | "6.3";
+export type FormId = "4.3" | "6.1" | "6.2" | "6.2.1" | "6.3";
 
 export type Column = { key: string; bn: string; en: string; group?: string };
 
@@ -39,6 +39,36 @@ const COLS_61: Column[] = [
   { key: "useVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Value used", group: "পণ্য প্রস্তুত/প্রক্রিয়া করণে উপকরণের ব্যবহার" },
   { key: "closeQty", bn: "পরিমাণ (একক)", en: "Closing quantity", group: "উপকরণের প্রান্তিক জের" },
   { key: "closeVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Closing value", group: "উপকরণের প্রান্তিক জের" },
+  { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
+];
+
+// Mushak 6.2.1 (ক্রয়-বিক্রয় হিসাব, for traders): columns (1)-(26) as printed on the official form.
+const COLS_621: Column[] = [
+  { key: "serial", bn: "ক্রমিক সংখ্যা", en: "Serial" },
+  { key: "date", bn: "তারিখ", en: "Date" },
+  { key: "openQty", bn: "পরিমাণ (একক)", en: "Opening quantity", group: "বিক্রয়যোগ্য পণ্যের প্রারম্ভিক জের" },
+  { key: "openVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Opening value", group: "বিক্রয়যোগ্য পণ্যের প্রারম্ভিক জের" },
+  { key: "buyQty", bn: "পরিমাণ (একক)", en: "Purchased quantity", group: "ক্রয়" },
+  { key: "buyVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Purchased value", group: "ক্রয়" },
+  { key: "totalQty", bn: "পরিমাণ (একক) =(৩+৫)", en: "Total quantity =(3+5)", group: "মোট পণ্য" },
+  { key: "totalVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত) =(৪+৬)", en: "Total value =(4+6)", group: "মোট পণ্য" },
+  { key: "sellerName", bn: "নাম", en: "Seller name", group: "বিক্রেতার তথ্য" },
+  { key: "sellerAddress", bn: "ঠিকানা", en: "Seller address", group: "বিক্রেতার তথ্য" },
+  { key: "sellerBin", bn: "নিবন্ধন/তালিকাভুক্তি/জাতীয় পরিচয়পত্র নং", en: "Seller BIN/NID", group: "বিক্রেতার তথ্য" },
+  { key: "boeNo", bn: "নম্বর", en: "Purchase challan / bill of entry no.", group: "ক্রয় চালানপত্রের/বিল অব এন্ট্রির বিবরণ" },
+  { key: "boeDate", bn: "তারিখ", en: "Purchase challan / bill of entry date", group: "ক্রয় চালানপত্রের/বিল অব এন্ট্রির বিবরণ" },
+  { key: "description", bn: "বিবরণ", en: "Description", group: "বিক্রীত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "quantity", bn: "পরিমাণ", en: "Quantity sold", group: "বিক্রীত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "value", bn: "করযোগ্য মূল্য (সকল প্রকার কর ব্যতীত)", en: "Taxable value", group: "বিক্রীত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "sd", bn: "সম্পূরক শুল্ক (যদি থাকে)", en: "SD", group: "বিক্রীত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "vat", bn: "মূসক", en: "VAT", group: "বিক্রীত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "buyerName", bn: "নাম", en: "Buyer name", group: "ক্রেতার তথ্য" },
+  { key: "buyerAddress", bn: "ঠিকানা", en: "Buyer address", group: "ক্রেতার তথ্য" },
+  { key: "buyerBinNid", bn: "নিবন্ধন/তালিকাভুক্তি/জাতীয় পরিচয়পত্র নং", en: "Buyer BIN/NID", group: "ক্রেতার তথ্য" },
+  { key: "challanNo", bn: "নম্বর", en: "Sales challan no.", group: "বিক্রয় চালানপত্রের বিবরণ" },
+  { key: "issueDate", bn: "তারিখ", en: "Sales challan date", group: "বিক্রয় চালানপত্রের বিবরণ" },
+  { key: "closeQty", bn: "পরিমাণ (একক) =(৭-১৫)", en: "Closing quantity =(7-15)", group: "পণ্যের প্রান্তিক জের" },
+  { key: "closeVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত) =(৮-১৬)", en: "Closing value =(8-16)", group: "পণ্যের প্রান্তিক জের" },
   { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
 ];
 
@@ -143,6 +173,52 @@ export function buildBook(
       rows,
       meta: { address: doc.address ?? "", firstSupply },
       totals: {},
+    };
+  }
+  if (form === "6.2.1") {
+    const rows = tradeLedger(doc)
+      .filter((r) => inRange(r.date))
+      .map((r, n) => {
+        const p = r.purchase;
+        const i = r.invoice;
+        return {
+          serial: n + 1,
+          date: r.date,
+          openQty: r.opening.qty,
+          openVal: r.opening.val,
+          buyQty: p ? p.quantity : "",
+          buyVal: p ? netValue(p) : "",
+          totalQty: r.total.qty,
+          totalVal: r.total.val,
+          sellerName: p?.supplierName ?? "",
+          sellerAddress: p?.supplierAddress ?? "",
+          sellerBin: "",
+          boeNo: p?.boeNo ?? "",
+          boeDate: p?.boeDate ?? "",
+          description: p?.description ?? i?.description ?? "",
+          quantity: i ? i.quantity : "",
+          value: i ? i.value : "",
+          sd: i ? i.sd : "",
+          vat: i ? i.vat : "",
+          buyerName: i?.buyerName ?? "",
+          buyerAddress: i?.deliveryAddress ?? "",
+          buyerBinNid: i?.buyerBinNid ?? "",
+          challanNo: i?.challanNo ?? "",
+          issueDate: i?.issueDate ?? "",
+          closeQty: r.closing.qty,
+          closeVal: r.closing.val,
+          remarks: p?.unit ?? i?.unit ?? "",
+        };
+      });
+    return {
+      form,
+      titleBn: "মূসক-৬.২.১ ক্রয়-বিক্রয় হিসাব",
+      titleEn: "Mushak 6.2.1 Purchase-Sales Account (traders)",
+      importer,
+      columns: COLS_621,
+      rows,
+      meta: { address: doc.address ?? "", subtitle: "পণ্য বা সেবা প্রক্রিয়াকরণে সম্পৃক্ত নয় (ব্যবসায়ী)" },
+      totals: sum(rows, ["buyQty", "buyVal", "quantity", "value", "sd", "vat"]),
     };
   }
   if (form === "6.1") {
