@@ -27,8 +27,8 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    duty totals that do not add up, BIN/name mismatch, or a quantity that the
    standing rules do not settle. A wrong save can be undone with
    `remove_bill_of_entry` while no challan has been issued against it.
-   Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
-   what was saved so the operator can verify the scan reading.
+   If the tool returns warnings (BIN/name mismatch, odd VAT rate, duty total
+   mismatch), report them; otherwise a short summary is enough.
 3. **Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা)**: published with every bill of entry save.
    Input = the imported goods at unit cost (AV + CD + RD + SD + AIT, per unit);
    value addition = the typed %; declared unit price = their sum. Report it
