@@ -30,6 +30,7 @@ export type ProviderView = {
   configured: boolean;
   apiKeyEnv: string;
   defaultModel: string;
+  baseUrl: string;
   baseHost: string;
 };
 
@@ -337,6 +338,7 @@ function toView(definition: ProviderDefinition, env: Env): ProviderView {
     configured: (env[definition.apiKeyEnv]?.trim() ?? "").length > 0,
     apiKeyEnv: definition.apiKeyEnv,
     defaultModel: definition.defaultModel,
+    baseUrl: definition.baseUrl,
     baseHost: new URL(definition.baseUrl).host,
   };
 }

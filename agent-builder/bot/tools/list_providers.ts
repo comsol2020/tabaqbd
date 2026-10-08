@@ -9,6 +9,7 @@ const ProviderView = z.object({
   configured: z.boolean(),
   apiKeyEnv: z.string(),
   defaultModel: z.string(),
+  baseUrl: z.string(),
   baseHost: z.string(),
 });
 

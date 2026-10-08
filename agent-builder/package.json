@@ -2,7 +2,7 @@
   "name": "agent-builder",
   "private": true,
   "type": "module",
-  "description": "Draft agents and run prompts through Miarouter, with room for more APIs.",
+  "description": "Build an n8n-ready agent from requirements, check every condition, and leave credentials for the user.",
   "scripts": {
     "check": "tsc --noEmit",
     "dev": "bdk dev"

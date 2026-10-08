@@ -3,7 +3,7 @@ import { defineAgent } from "@cursor/bdk";
 export default defineAgent({
   name: "Agent Builder",
   description:
-    "Drafts agents and runs prompts through Miarouter, with room for more APIs.",
+    "Builds an n8n-ready agent from the user's requirements, checks every condition, and leaves credentials for the user to paste.",
   model: {
     id: "grok-4.5",
     params: [

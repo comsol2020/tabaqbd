@@ -1,8 +1,10 @@
 # Agent Builder
 
-Miarouter API দিয়ে এজেন্ট ড্রাফট করা এবং প্রম্পট চালানোর এজেন্ট। আরও API একই জায়গায় যোগ করা যায়।
+আপনি কন্ডিশন ও রিকোয়ারমেন্ট দেবেন। বিল্ডার এজেন্টের ইনস্ট্রাকশন লিখে প্রতিটা কন্ডিশন মিলিয়ে দেখে, সব পাস হলেই n8n ওয়ার্কফ্লো দেয়। আপনি n8n-এ শুধু API key বসাবেন।
 
-ডিফল্ট প্রোভাইডার `miarouter`। হোস্ট `https://api.maiarouter.ai/v1`, মডেল `maia/gemini-2.5-flash`। চাবি `MIAROUTER_API_KEY`।
+ডিফল্ট API Miarouter (`https://api.maiarouter.ai/v1`, মডেল `maia/gemini-2.5-flash`)। আরও OpenAI-কম্প্যাটিবল API `EXTRA_PROVIDERS_JSON` দিয়ে যোগ করা যায়।
+
+`prepare_agent` যতক্ষণ `ready: true` না হয়, ওয়ার্কফ্লো বের হয় না। প্রতিটা রিকোয়ারমেন্টের বাক্য ইনস্ট্রাকশনে না থাকলে সেই চেক ফেল হয়।
 
 ## চালু করা
 
@@ -14,12 +16,14 @@ npx @cursor/bdk dev
 
 প্লেগ্রাউন্ড: [http://127.0.0.1:3000/playground](http://127.0.0.1:3000/playground)
 
-`.env` লোড করতে শেল থেকে এক্সপোর্ট করে দিন, অথবা হোস্টেড ডিপ্লয়ে `bdk secrets set` ব্যবহার করুন। এই ফোল্ডার ছাড়া অন্য ডিরেক্টরিতে `bdk serve` চালাবেন না।
+## n8n
+
+1. JSON ইমপোর্ট করুন (Chat Trigger, AI Agent, মেমোরি, OpenAI Chat Model)।
+2. OpenAI credential বানিয়ে শুধু API key দিন। Base URL ফিল্ড থাকলে ওয়ার্কফ্লোতে যে URL আছে সেটা বসান।
+3. মডেল নোডে credential সিলেক্ট করে চ্যাট ট্রিগার থেকে টেস্ট করুন।
+
+মডেল নোড `responsesApiEnabled: false`, যাতে Miarouter-এর chat completions এন্ডপয়েন্টে যায়।
 
 ## আরেকটা API
 
-OpenAI-কম্প্যাটিবল API হলে কোড বদলাতে হয় না। `EXTRA_PROVIDERS_JSON`-এ একটা অবজেক্ট দিন এবং চাবি আলাদা env-তে রাখুন। ধাপগুলো `bot/skills/add-provider.md`-এ আছে।
-
-অন্য প্রোটোকল লাগলে `bot/lib/providers.ts`-এ নতুন ব্রাঞ্চ যোগ করুন। `list_providers` কখনো চাবি ফেরত দেয় না।
-
-হোস্ট বদলালে `bot/agent.ts`-এর `hosting.egressDomains`-এ সেই হোস্ট যোগ করে তারপর ডিপ্লয় করুন।
+`bot/skills/add-provider.md` দেখুন। হোস্ট বদলালে `bot/agent.ts`-এর `hosting.egressDomains`-এ সেই হোস্ট যোগ করে ডিপ্লয় করুন।
