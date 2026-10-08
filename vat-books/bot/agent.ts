@@ -4,7 +4,7 @@ export default defineAgent({
   model: {
     id: "grok-4.5",
     params: [
-      { id: "effort", value: "high" },
+      { id: "effort", value: "low" },
       { id: "fast", value: "true" },
     ],
   },
