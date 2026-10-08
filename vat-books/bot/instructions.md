@@ -20,10 +20,13 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    twice (zoom in) and never take them from the later assessment or receipt
    dates. If the scan is blurry, dark, low resolution or skewed so that any
    figure is uncertain, stop and ask for a clearer scan instead of retrying.
-2. After saving, show a verification table (BIN, name, B/E number, date, each
-   item's quantity and money figures) and ask the operator to check it against
-   the scan. If something is wrong, call `remove_bill_of_entry` and save it
-   again; this is only possible while no challan has been issued against it.
+2. Do not ask the operator to verify every save. Save when the reading is
+   certain and the tool returns no warnings, then give a short summary (BIN,
+   B/E number and date, item, quantity, key figures) as a record. Ask only when
+   something is uncertain or inconsistent: unreadable or conflicting figures,
+   duty totals that do not add up, BIN/name mismatch, or a quantity that the
+   standing rules do not settle. A wrong save can be undone with
+   `remove_bill_of_entry` while no challan has been issued against it.
    Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
    what was saved so the operator can verify the scan reading.
 3. **Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা)**: published with every bill of entry save.
