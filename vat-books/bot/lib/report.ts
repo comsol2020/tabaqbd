@@ -207,25 +207,25 @@ function tables(r: MonthlyReport): Table[] {
   };
   const sub38: Table = {
     title: "সাব-ফরম ৩.৮: Retail/Wholesale/Trade Based Supply",
-    head: ["Category Name", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Value (a)", "SD (b)", "VAT (c)", "বিক্রিত পরিমাণ", "একক", "চালান সংখ্যা"],
+    head: ["Category Name", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Value (a)", "SD (b)", "VAT (c)", "Notes", "বিক্রিত পরিমাণ", "একক", "চালান সংখ্যা"],
     rows: [
       ...r.items.flatMap((i) =>
-        i.salesGroups.map((g): Cell[] => [g.category, i.item, i.hsCode, i.item, g.value, g.sd, g.vat, g.quantity, i.unit, i.challans]),
+        i.salesGroups.map((g): Cell[] => [g.category, i.item, i.hsCode, i.item, g.value, g.sd, g.vat, "", g.quantity, i.unit, i.challans]),
       ),
-      ["TOTAL", "", "", "", n.note8.value, n.note8.sd, n.note8.vat, "", "", r.totals.challans],
+      ["TOTAL", "", "", "", n.note8.value, n.note8.sd, n.note8.vat, "", "", "", r.totals.challans],
     ],
   };
   const sub422: Table = {
     title: "সাব-ফরম ৪.২২: Import (Not Admissible for Credit)",
-    head: ["Data Source", "BoE Number", "BoE Date", "BoE Office Code", "BoE Item No", "CPC Code", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Assessable Value", "Value (a)", "SD (b)", "VAT (c)", "AT", "পরিমাণ", "একক"],
+    head: ["Data Source", "BoE Number", "BoE Date", "BoE Office Code", "BoE Item No", "CPC Code", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Assessable Value", "Value (a)", "SD (b)", "VAT (c)", "AT", "Notes", "পরিমাণ", "একক"],
     rows: [
       ...r.items.flatMap((i) =>
         i.imports.map((l): Cell[] => [
           "Import against Bill of E", l.boeNo, l.boeDate, l.officeCode, l.itemNo, l.cpcCode, i.item, i.hsCode, i.item,
-          l.assessableValue, l.value, l.sd, l.vat, l.at, l.quantity, i.unit,
+          l.assessableValue, l.value, l.sd, l.vat, l.at, "", l.quantity, i.unit,
         ]),
       ),
-      ["TOTAL", "", "", "", "", "", "", "", "", sum(r.items.flatMap((i) => i.imports.map((l) => l.assessableValue))), r.totals.inputValue, r.totals.inputSd, r.totals.inputVat, r.totals.advanceTax, "", ""],
+      ["TOTAL", "", "", "", "", "", "", "", "", sum(r.items.flatMap((i) => i.imports.map((l) => l.assessableValue))), r.totals.inputValue, r.totals.inputSd, r.totals.inputVat, r.totals.advanceTax, "", "", ""],
     ],
   };
   const stock: Table = {
