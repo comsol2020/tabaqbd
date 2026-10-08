@@ -1,4 +1,5 @@
-import { removeBoe } from "../bot/lib/boe.js";
+import { applyBoe, removeBoe } from "../bot/lib/boe.js";
+import { lookupHs, requireHsName } from "../bot/lib/catalog.js";
 import { monthlyReport, reportHtml, reportXlsx } from "../bot/lib/report.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -19,6 +20,7 @@ import {
   dutyTotal,
   impliedImportVatRate,
   normalizeBin,
+  normalizeHs,
   selectCustomers,
 } from "../bot/lib/vat.js";
 
@@ -264,6 +266,52 @@ test("monthly report keeps items separate with their own stock", () => {
   assert.ok(reportHtml(r).includes("সারসংক্ষেপ"));
   const line = marble!.imports[0]!;
   assert.equal(line.value, round2(line.assessableValue + doc.purchases[1]!.cd + doc.purchases[1]!.rd + doc.purchases[1]!.sd));
+});
+
+test("HS codes match with or without dots", () => {
+  assert.equal(normalizeHs("2521.00.10"), "25210010");
+  assert.equal(normalizeHs("25210010"), "25210010");
+});
+
+test("product name is stored once per HS and reused for any importer", () => {
+  const a = requireHsName({}, "2521.00.10", "Boulder limestone");
+  assert.equal(a.name, "Boulder limestone");
+  assert.equal(lookupHs(a.catalog, "25210010").name, "Boulder limestone");
+  const b = requireHsName(a.catalog, "25210010");
+  assert.equal(b.name, "Boulder limestone");
+  assert.throws(() => requireHsName({}, "25171090"), /Unknown HS/);
+});
+
+test("value addition is once per BIN; 4.3 regenerates only after a 7.5% cost move", () => {
+  const doc = newImporter("0003116570701", "Aritree");
+  const item = (av: number, name?: string) => ({
+    hsCode: "25210010",
+    productName: name,
+    unit: "KG",
+    quantity: 1,
+    assessableValue: av,
+    cd: 0,
+    rd: 0,
+    sd: 0,
+    vat: round2(av * 0.15),
+    ait: 0,
+    at: 0,
+  });
+  assert.throws(() => applyBoe(doc, { number: "C-1", date: "2026-09-01", items: [item(100, "Boulder limestone")] }, {}), /value addition/);
+  const first = applyBoe(doc, { number: "C-1", date: "2026-09-01", valueAdditionPct: 10, items: [item(100, "Boulder limestone")] }, {});
+  assert.equal(doc.additionPct, 10);
+  assert.equal(first.publish43, true);
+  assert.equal(first.lines[0]?.declaredUnitPrice, 110);
+  const second = applyBoe(doc, { number: "C-2", date: "2026-09-10", items: [item(105)] }, first.catalog);
+  assert.equal(second.publish43, false);
+  assert.equal(second.lines[0]?.declaredUnitPrice, 110);
+  assert.equal(second.lines[0]?.unitCost, 105);
+  const third = applyBoe(doc, { number: "C-3", date: "2026-09-20", items: [item(108)] }, second.catalog);
+  assert.equal(third.publish43, true);
+  assert.equal(third.lines[0]?.declaredUnitPrice, 118.8);
+  assert.match(third.warnings.join(" "), /7\.5%/);
+  assert.equal(buildBook(doc, "4.3").rows.length, 1);
+  assert.equal(buildBook(doc, "4.3").rows[0]?.inputValue, 108);
 });
 
 test("removing a bill of entry works only before any sale", () => {

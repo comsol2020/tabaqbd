@@ -1,5 +1,5 @@
 ---
-description: How to read a Bangladesh customs bill of entry scan (land port, e.g. Tamabil) into save_bill_of_entry fields.
+description: How to read a Bangladesh customs bill of entry scan (land port, e.g. Tamabil, Bhomra) into save_bill_of_entry fields.
 ---
 
 # Reading a bill of entry
@@ -14,13 +14,24 @@ Layout of the common form ("BILL OF ENTRY / EXPORT"), phone photos included:
   (`C 8251`, save as `C-8251`) with the date beside it, printed `DD/MM/YYYY`
   (05/09/2026 is 5 September 2026). The assessment and receipt dates in the
   accounting box are later dates; do not use them.
-- **Item**: HS code (box 33), description (box 31), and the assessable value
-  (box 46 "Item Assessable Value"). One `items` entry per item number (box 32);
-  check box 5 (item count) matches.
-- **Quantity and unit**: use the quantity that the goods are measured in.
-  Boxes 35/38 give gross/net weight in kg; box 41 "Quantity/Units" can hold a
-  different number. If these disagree (for example 25,500 kg net weight and 240
-  in box 41), say so and ask the operator which one is the stock quantity.
+- **Item**: HS code is box 33. One `items` entry per item number (box 32);
+  check box 5 (item count) matches. Assessable value is box 46.
+- **Quantity and unit (standing rule)**: stock quantity is **box 38 net
+  weight**, unit **KG**. Do not use box 41 Quantity/Units (it may be blank, or
+  hold a different figure such as 240). Do not use package count. Do not add
+  an `EXT= … KGS` figure from the description until the operator confirms that
+  rule. Do not ask which quantity to use.
+- **Product name (standing rule)**: look up every box-33 HS code with
+  `lookup_hs` (shared across all importers). If the name is already stored,
+  use it and do not ask. If it is unknown, ask the operator to type the name
+  once, then `set_product_name` or pass `productName` on save. Never invent a
+  name from the scan's "Description of Goods" text, and never ask again for an
+  HS code that is already in the catalogue. `2521.00.10` and `25210010` are the
+  same code.
+- **Value addition %**: once per BIN, not per bill of entry. If
+  `list_importers` already shows `additionPct` for this BIN, omit it. If not,
+  ask the operator once and pass `valueAdditionPct` (or `set_value_addition`).
+  Never invent a percentage.
 - **Duties**: box 47 table has rows CD, RD, SD, VAT, AIT, AT, ATV with
   base, rate and amount. Use the **amount** column. ATV is a base only and has
   no amount in the books; ignore it. Rows that are 0.00 are 0.

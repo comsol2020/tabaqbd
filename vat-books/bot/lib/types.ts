@@ -62,10 +62,26 @@ export type RotationState = {
   lastServed: Record<string, number>;
 };
 
+/** Last Mushak 4.3 declaration for one HS code of this importer. */
+export type CoefficientRow = {
+  hsCode: string;
+  description: string;
+  unit: string;
+  unitCost: number;
+  additionPct: number;
+  declaredUnitPrice: number;
+  declaredOn: string;
+  boeNo: string;
+};
+
 export type ImporterDoc = {
   bin: string;
   name: string;
   address?: string;
+  /** Mushak 4.3 value addition %, set once per BIN. */
+  additionPct?: number;
+  /** Current 4.3 declaration, keyed by normalised HS code. */
+  coefficients: Record<string, CoefficientRow>;
   customers: Customer[];
   purchases: PurchaseLine[];
   invoices: Invoice[];

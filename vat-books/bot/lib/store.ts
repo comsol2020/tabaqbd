@@ -29,12 +29,26 @@ export function newImporter(bin: string, name: string, address?: string): Import
     bin,
     name,
     address,
+    coefficients: {},
     customers: [],
     purchases: [],
     invoices: [],
     rotation: { round: 0, lastRoundIds: [], lastServed: {} },
     requests: {},
   };
+}
+
+const HS_CATALOG = "hs:catalog";
+
+export type HsCatalog = Record<string, { hsCode: string; name: string }>;
+
+export async function loadHsCatalog(kv: Kv): Promise<HsCatalog> {
+  const v = await kv.get(HS_CATALOG);
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as HsCatalog) : {};
+}
+
+export async function saveHsCatalog(kv: Kv, catalog: HsCatalog): Promise<void> {
+  await kv.put(HS_CATALOG, catalog as unknown as JsonValue);
 }
 
 export async function requireImporter(kv: Kv, bin: string): Promise<ImporterDoc> {

@@ -24,7 +24,7 @@ export default defineTool({
     const doc = await requireImporter(ctx.host.kv, normalizeBin(bin));
     const { removedLines } = removeBoe(doc, number, date);
     await saveImporter(ctx.host.kv, doc);
-    const published = await publishBooks(ctx.artifacts, doc, ["4.3", "6.1", "6.2.1"]);
+    const published = await publishBooks(ctx.artifacts, doc, ["6.1", "6.2.1"]);
     return { removed: true, bin: doc.bin, removedLines, published };
   },
 });

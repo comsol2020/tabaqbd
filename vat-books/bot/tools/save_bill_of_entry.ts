@@ -1,22 +1,25 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
+import { applyBoe } from "../lib/boe.js";
 import { publishBooks } from "../lib/publish.js";
-import { createImporter, loadImporter, saveImporter } from "../lib/store.js";
-import type { PurchaseLine } from "../lib/types.js";
-import { declaredPrice, dutyTotal, impliedImportVatRate, isIsoDate, normalizeBin, vatRateLooksOff } from "../lib/vat.js";
+import { createImporter, loadHsCatalog, loadImporter, saveHsCatalog, saveImporter } from "../lib/store.js";
+import { isIsoDate, normalizeBin } from "../lib/vat.js";
 
 const money = z.number().min(0);
 
 export default defineTool({
   description: prompt`
     Save one bill of entry that you have already read from an uploaded scan,
-    and add its lines to the importer's Mushak 6.1 purchase book. A BIN seen
-    for the first time gets its books created automatically from the BIN and
-    name on the document, and the 4.3, 6.1 and 6.2.1 books are published as CSV and HTML, so
-    never ask the operator to register an importer separately. Saving the same
-    bill of entry number and date again changes nothing. Pass money exactly as
-    printed, in BDT, as plain numbers.
+    and add its lines to the importer's Mushak 6.1 purchase book. Quantity is
+    the net weight from box 38, in KG. Product name comes from the shared HS
+    catalogue (lookup_hs); pass productName only for an HS code the catalogue
+    does not yet have — the name the operator typed, not the scan's description
+    text. Value addition % is once per BIN: pass valueAdditionPct only if this
+    importer has none yet. A BIN seen for the first time gets its books created
+    automatically. Saving the same bill of entry number and date again changes
+    nothing. Mushak 4.3 is published only on the first declaration or when
+    unit cost moves more than 7.5%. 6.1 and 6.2.1 are published on every save.
   `,
   effect: "write",
   inputSchema: z.object({
@@ -35,7 +38,8 @@ export default defineTool({
         .number()
         .min(0)
         .max(1000)
-        .describe("Mushak 4.3 value addition % typed by the operator for this bill of entry. Ask for it if not given; never invent one"),
+        .optional()
+        .describe("Mushak 4.3 value addition % for this BIN. Required only the first time this BIN is seen; omit later"),
       declaredTotalTax: z
         .number()
         .optional()
@@ -43,10 +47,13 @@ export default defineTool({
       items: z
         .array(
           z.object({
-            description: z.string().min(1),
-            hsCode: z.string().optional(),
-            unit: z.string().min(1),
-            quantity: z.number().positive(),
+            hsCode: z.string().min(1).describe("Box 33, required"),
+            productName: z
+              .string()
+              .optional()
+              .describe("Only if lookup_hs says this HS is unknown: the name the operator typed"),
+            unit: z.string().min(1).describe("Always KG from box 38"),
+            quantity: z.number().positive().describe("Box 38 net weight; do not use box 41"),
             assessableValue: money,
             cd: money.default(0),
             rd: money.default(0),
@@ -54,7 +61,6 @@ export default defineTool({
             vat: money,
             ait: money.default(0),
             at: money.default(0),
-            valueAdditionPct: z.number().min(0).max(1000).optional().describe("Overrides the bill of entry level % for this item"),
           }),
         )
         .min(1),
@@ -72,78 +78,38 @@ export default defineTool({
     const warnings: string[] = [];
     if (doc.name.trim().toLowerCase() !== importer.name.trim().toLowerCase()) {
       warnings.push(
-        `Name on this document ("${importer.name}") differs from the name on file ("${doc.name}") for BIN ${bin}. Filed under the BIN; please verify.`,
+        `Name on this document ("${importer.name}") differs from the name on file ("${doc.name}") for BIN ${bin}. Filed under the BIN.`,
       );
     }
     if (doc.purchases.some((p) => p.boeKey === boeKey)) {
       return { saved: false, duplicate: true, bin, boeKey, warnings };
     }
-    const base = doc.purchases.length;
-    const lines = boe.items.map((it, i): PurchaseLine => {
-      const rate = impliedImportVatRate(it);
-      if (vatRateLooksOff(rate)) {
-        warnings.push(
-          `Item ${i + 1}: VAT implies ${rate}% of (AV+CD+RD+SD), which is not a usual rate. Re-check the scan.`,
-        );
-      }
-      const pct = it.valueAdditionPct ?? boe.valueAdditionPct;
-      const price = declaredPrice(it, pct);
-      const prev = [...doc.purchases]
-        .reverse()
-        .find((p) => (it.hsCode && p.hsCode === it.hsCode) || p.description === it.description);
-      if (prev && prev.unitCost > 0) {
-        const change = (price.unitCost - prev.unitCost) / prev.unitCost;
-        if (Math.abs(change) > 0.075) {
-          warnings.push(
-            `Item ${i + 1}: unit cost moved ${(change * 100).toFixed(1)}% from ${prev.unitCost} (${prev.boeNo}). Mushak 4.3 note 2: a change of more than 7.5% needs a new declaration.`,
-          );
-        }
-      }
-      return {
-        lineId: `${boeKey}#${i + 1}`,
-        boeKey,
-        serial: base + i + 1,
-        boeNo: boe.number.trim(),
-        boeDate: boe.date,
-        customsHouse: boe.customsHouse,
-        supplierName: boe.supplierName,
-        supplierAddress: boe.supplierAddress,
-        description: it.description,
-        hsCode: it.hsCode,
-        unit: it.unit,
-        quantity: it.quantity,
-        assessableValue: it.assessableValue,
-        cd: it.cd,
-        rd: it.rd,
-        sd: it.sd,
-        vat: it.vat,
-        ait: it.ait,
-        at: it.at,
-        additionPct: pct,
-        ...price,
-      };
-    });
-    if (boe.declaredTotalTax !== undefined) {
-      const computed = dutyTotal(boe.items);
-      if (Math.abs(computed - boe.declaredTotalTax) > 1) {
-        warnings.push(
-          `Duties add up to ${computed} but the document total is ${boe.declaredTotalTax}. A figure was probably misread. Re-check the scan before relying on this book.`,
-        );
-      }
-    }
-    doc.purchases.push(...lines);
+    const catalog = await loadHsCatalog(kv);
+    const result = applyBoe(doc, boe, catalog);
+    warnings.push(...result.warnings);
+    await saveHsCatalog(kv, result.catalog);
     await saveImporter(kv, doc);
-    const published = await publishBooks(ctx.artifacts, doc, ["4.3", "6.1", "6.2.1"]);
+    const forms = result.publish43 ? (["4.3", "6.1", "6.2.1"] as const) : (["6.1", "6.2.1"] as const);
+    const published = await publishBooks(ctx.artifacts, doc, [...forms]);
     return {
       saved: true,
       duplicate: false,
       newImporter: isNewImporter,
       customersInherited: isNewImporter ? doc.customers.length : undefined,
       published,
-      declaredUnitPrices: lines.map((l) => ({ lineId: l.lineId, additionPct: l.additionPct, unitCost: l.unitCost, declaredUnitPrice: l.declaredUnitPrice })),
+      fourThreeRegenerated: result.publish43,
+      additionPct: doc.additionPct,
+      declaredUnitPrices: result.lines.map((l) => ({
+        lineId: l.lineId,
+        hsCode: l.hsCode,
+        description: l.description,
+        additionPct: l.additionPct,
+        unitCost: l.unitCost,
+        declaredUnitPrice: l.declaredUnitPrice,
+      })),
       bin,
       importerName: doc.name,
-      lineIds: lines.map((l) => l.lineId),
+      lineIds: result.lines.map((l) => l.lineId),
       warnings,
     };
   },

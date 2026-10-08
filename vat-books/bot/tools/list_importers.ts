@@ -14,6 +14,7 @@ export default defineTool({
       out.push({
         bin,
         name: d.name,
+        additionPct: d.additionPct ?? null,
         purchaseLines: d.purchases.length,
         customers: d.customers.length,
         challans: d.invoices.length,

@@ -1,7 +1,16 @@
 import type { ImporterDoc, Invoice, PurchaseLine } from "./types.js";
-import { round2 } from "./vat.js";
+import { normalizeHs, round2 } from "./vat.js";
 
-export const productKey = (p: { hsCode?: string; description: string }) => p.hsCode || p.description;
+export const productKey = (p: { hsCode?: string; description: string }) => {
+  if (p.hsCode) {
+    try {
+      return normalizeHs(p.hsCode);
+    } catch {
+      return p.hsCode;
+    }
+  }
+  return p.description;
+};
 
 /** Value of a purchase line excluding VAT, SD, AIT and AT: assessable value + CD + RD. */
 export const netValue = (p: PurchaseLine) => round2(p.assessableValue + p.cd + p.rd);

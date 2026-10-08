@@ -16,6 +16,15 @@ export function normalizeBin(input: string): string {
   return digits;
 }
 
+/** HS code as digits only, so 2521.00.10 and 25210010 match. */
+export function normalizeHs(input: string): string {
+  const digits = normalizeDigits(input).replace(/\D/g, "");
+  if (digits.length < 4) {
+    throw new Error(`HS code looks too short ("${input}"). Re-read box 33.`);
+  }
+  return digits;
+}
+
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const d = new Date(`${value}T00:00:00Z`);

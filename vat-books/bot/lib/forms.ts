@@ -148,22 +148,41 @@ export function buildBook(
     (!range.from || d >= range.from) && (!range.to || d <= range.to);
 
   if (form === "4.3") {
-    const rows = doc.purchases
-      .filter((p) => inRange(p.boeDate))
-      .map((p, i) => ({
-        serial: i + 1,
-        hsCode: p.hsCode ?? "",
-        description: p.description,
-        unit: p.unit,
-        inputDescription: `${p.description} (বিল অব এন্ট্রি ${p.boeNo})`,
-        inputQty: 1,
-        inputValue: p.unitCost,
-        wasteQty: 0,
-        wastePct: 0,
-        additionHead: `মূল্য সংযোজন ${p.additionPct}%`,
-        additionValue: Math.round((p.declaredUnitPrice - p.unitCost) * 100) / 100,
-        remarks: `ঘোষিত একক মূল্য ${p.declaredUnitPrice}`,
-      }));
+    const declared = Object.values(doc.coefficients ?? {});
+    const source =
+      declared.length > 0
+        ? declared.filter((c) => inRange(c.declaredOn)).map((c) => ({
+            hsCode: c.hsCode,
+            description: c.description,
+            unit: c.unit,
+            boeNo: c.boeNo,
+            unitCost: c.unitCost,
+            additionPct: c.additionPct,
+            declaredUnitPrice: c.declaredUnitPrice,
+          }))
+        : doc.purchases.filter((p) => inRange(p.boeDate)).map((p) => ({
+            hsCode: p.hsCode ?? "",
+            description: p.description,
+            unit: p.unit,
+            boeNo: p.boeNo,
+            unitCost: p.unitCost,
+            additionPct: p.additionPct,
+            declaredUnitPrice: p.declaredUnitPrice,
+          }));
+    const rows = source.map((p, i) => ({
+      serial: i + 1,
+      hsCode: p.hsCode,
+      description: p.description,
+      unit: p.unit,
+      inputDescription: `${p.description} (বিল অব এন্ট্রি ${p.boeNo})`,
+      inputQty: 1,
+      inputValue: p.unitCost,
+      wasteQty: 0,
+      wastePct: 0,
+      additionHead: `মূল্য সংযোজন ${p.additionPct}%`,
+      additionValue: Math.round((p.declaredUnitPrice - p.unitCost) * 100) / 100,
+      remarks: `ঘোষিত একক মূল্য ${p.declaredUnitPrice}`,
+    }));
     const firstSupply = doc.invoices.map((i) => i.issueDate).sort()[0] ?? "";
     return {
       form,
