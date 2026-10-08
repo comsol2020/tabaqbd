@@ -13,8 +13,6 @@ export type PurchaseLine = {
   boeNo: string;
   boeDate: string;
   customsHouse?: string;
-  officeCode?: string;
-  cpcCode?: string;
   supplierName?: string;
   supplierAddress?: string;
   description: string;

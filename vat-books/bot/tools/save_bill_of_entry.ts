@@ -29,7 +29,6 @@ export default defineTool({
       number: z.string().min(1),
       date: z.string().describe("YYYY-MM-DD"),
       customsHouse: z.string().optional(),
-      officeCode: z.string().optional().describe("Customs office/station code (the 'BoE Office Code' of return sub-form 4.22), only if printed or given by the operator"),
       supplierName: z.string().optional(),
       supplierAddress: z.string().optional().describe("Exporter's address as printed (box 2)"),
       valueAdditionPct: z
@@ -55,7 +54,6 @@ export default defineTool({
             vat: money,
             ait: money.default(0),
             at: money.default(0),
-            cpcCode: z.string().optional().describe("CPC code (box 'CPC') only if printed or given"),
             valueAdditionPct: z.number().min(0).max(1000).optional().describe("Overrides the bill of entry level % for this item"),
           }),
         )
@@ -108,8 +106,6 @@ export default defineTool({
         boeNo: boe.number.trim(),
         boeDate: boe.date,
         customsHouse: boe.customsHouse,
-        officeCode: boe.officeCode,
-        cpcCode: it.cpcCode,
         supplierName: boe.supplierName,
         supplierAddress: boe.supplierAddress,
         description: it.description,

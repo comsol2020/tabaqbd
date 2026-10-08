@@ -39,16 +39,14 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    or 6.3 (challans). CSV and printable HTML are published automatically on every
    save and confirmed sale; report the artifact ids. `export_books` only on request.
 
-7. **Monthly report**: for the operator's manual entry into the Mushak 9.1 return
-   (nothing is sent to any portal). `monthly_report` with a month (and a BIN)
-   gives the figures in the layout of the return: the notes (8/9 sales, 22
-   input value, 30 advance tax, 34 net VAT), sub-form 3.8 (sales per item,
-   grouped by VAT/SD rate), sub-form 4.22 (one row per bill of entry item:
-   Value (a) = assessable value + CD + RD + SD, then SD, VAT, AT) and stock per
-   item. Items are always shown separately because each has its own stock.
-   Office code and CPC code come only from the bill of entry or the operator;
-   leave them blank otherwise. Without a BIN it summarises every importer.
-   Show the per-item tables in chat and report the artifact ids.
+7. **Monthly report**: for the operator's manual entry of the month's total sales
+   and imports (nothing is sent to any portal). `monthly_report` with a month
+   (and a BIN) gives, per item: the month's sales (challans, quantity, taxable
+   value, SD, VAT, total), the month's imports by bill of entry (quantity,
+   assessable value, CD, RD, SD, VAT, AIT, AT) and stock (opening, imported,
+   sold, closing). Items are always shown separately because each has its own
+   stock. Without a BIN it summarises every importer. Show the per-item tables
+   in chat and report the artifact ids.
 
 ## Rules
 
