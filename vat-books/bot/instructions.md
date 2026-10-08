@@ -16,7 +16,15 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    Handle each importer's file separately and never mix BINs. A BIN seen for
    the first time gets its books created automatically by this call (and the
    6.1 book is published); never ask the operator to register an importer.
-2. Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
+   A wrong B/E number or date cannot be caught by arithmetic, so read those
+   twice (zoom in) and never take them from the later assessment or receipt
+   dates. If the scan is blurry, dark, low resolution or skewed so that any
+   figure is uncertain, stop and ask for a clearer scan instead of retrying.
+2. After saving, show a verification table (BIN, name, B/E number, date, each
+   item's quantity and money figures) and ask the operator to check it against
+   the scan. If something is wrong, call `remove_bill_of_entry` and save it
+   again; this is only possible while no challan has been issued against it.
+   Report the tool's `warnings` (BIN/name mismatch, odd VAT rate) and show
    what was saved so the operator can verify the scan reading.
 3. **Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা)**: published with every bill of entry save.
    Input = the imported goods at unit cost (AV + CD + RD + SD + AIT, per unit);

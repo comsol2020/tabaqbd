@@ -1,3 +1,4 @@
+import { removeBoe } from "../bot/lib/boe.js";
 import { monthlyReport, reportHtml, reportXlsx } from "../bot/lib/report.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -263,4 +264,15 @@ test("monthly report keeps items separate with their own stock", () => {
   assert.ok(reportHtml(r).includes("সারসংক্ষেপ"));
   const line = marble!.imports[0]!;
   assert.equal(line.value, round2(line.assessableValue + doc.purchases[1]!.cd + doc.purchases[1]!.rd + doc.purchases[1]!.sd));
+});
+
+test("removing a bill of entry works only before any sale", () => {
+  const doc = fixture();
+  assert.throws(() => removeBoe(doc, "NOPE", "2026-01-01"), /No bill of entry/);
+  const { boeNo, boeDate } = doc.purchases[0]!;
+  confirmSales(doc, req, "req-rm-xxxxxxxx");
+  assert.throws(() => removeBoe(doc, boeNo, boeDate), /cannot be removed/);
+  const fresh = fixture();
+  removeBoe(fresh, boeNo, boeDate);
+  assert.equal(fresh.purchases.length, 0);
 });
