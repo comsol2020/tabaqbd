@@ -9,7 +9,7 @@ Layout of the common form ("BILL OF ENTRY / EXPORT"), phone photos included:
 - **Importer** is box 8 "Consignee/Importer": `BIN: 000311657-0701` is 9+4
   digits, so 13 digits once the hyphen is dropped. Name and address follow.
   The TIN under it is not the BIN. Box 2 is the foreign exporter, which is the
-  supplier. Box 14 is the C&F agent (not the importer).
+  supplier (name to `supplierName`, address lines to `supplierAddress`). Box 14 is the C&F agent (not the importer).
 - **B/E number and date**: top right, "Registration" shows a letter and number
   (`C 8251`, save as `C-8251`) with the date beside it, printed `DD/MM/YYYY`
   (05/09/2026 is 5 September 2026). The assessment and receipt dates in the

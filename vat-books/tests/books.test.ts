@@ -162,3 +162,37 @@ test("sales use the 4.3 declared price and the 4.3 book renders", () => {
   assert.equal(b43.rows[0]?.additionValue, 0);
   assert.equal(toHtml(b43).includes("প্রতিষ্ঠানের নাম"), true);
 });
+
+test("6.1 and 6.2 follow the official columns and keep a running stock", () => {
+  const doc = fixture();
+  confirmSales(doc, req, "req-1-xxxxxxxx");
+  doc.purchases.push({
+    ...doc.purchases[0]!,
+    lineId: "B2|2026-03-01#1",
+    boeKey: "B2|2026-03-01",
+    serial: 2,
+    boeNo: "B2",
+    boeDate: "2026-03-01",
+    quantity: 500,
+    assessableValue: 250000,
+    cd: 12500,
+  });
+  const b61 = buildBook(doc, "6.1");
+  assert.equal(b61.columns.length, 21);
+  const [r1, r2] = b61.rows;
+  assert.equal(r1?.openQty, 0);
+  assert.equal(r1?.useQty, 30);
+  assert.equal(r1?.closeQty, 970);
+  assert.equal(r2?.openQty, 970);
+  assert.equal(r2?.totalQty, 1470);
+  assert.equal(r2?.value, 262500);
+
+  const b62 = buildBook(doc, "6.2");
+  assert.equal(b62.columns.length, 21);
+  assert.equal(b62.rows.length, 3);
+  assert.equal(b62.rows[0]?.recvQty, 1000);
+  assert.equal(b62.rows[0]?.closeQty, 990);
+  assert.equal(b62.rows[2]?.closeQty, 970);
+  assert.equal(b62.rows[1]?.recvQty, 0);
+  assert.ok(toHtml(b62).includes("colspan"));
+});

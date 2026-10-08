@@ -1,8 +1,9 @@
+import { netValue, purchaseLedger, salesLedger } from "./ledger.js";
 import type { ImporterDoc } from "./types.js";
 
 export type FormId = "4.3" | "6.1" | "6.2" | "6.3";
 
-export type Column = { key: string; bn: string; en: string };
+export type Column = { key: string; bn: string; en: string; group?: string };
 
 export type Book = {
   form: FormId;
@@ -15,23 +16,30 @@ export type Book = {
   totals: Record<string, number>;
 };
 
-// Column sets are the single place to align with the VAT Online layout.
+// Column sets are the single place to align with the official layouts.
+// Mushak 6.1 (ক্রয় হিসাব পুস্তক): columns (1)-(21) as printed on the official form.
 const COLS_61: Column[] = [
-  { key: "serial", bn: "ক্রমিক", en: "Serial" },
-  { key: "boeDate", bn: "বিল অব এন্ট্রির তারিখ", en: "Bill of entry date" },
-  { key: "boeNo", bn: "বিল অব এন্ট্রি নং", en: "Bill of entry no." },
-  { key: "supplierName", bn: "সরবরাহকারীর নাম", en: "Supplier" },
-  { key: "description", bn: "পণ্যের বিবরণ", en: "Description" },
-  { key: "hsCode", bn: "এইচ.এস. কোড", en: "HS code" },
-  { key: "unit", bn: "একক", en: "Unit" },
-  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
-  { key: "assessableValue", bn: "শুল্কায়নযোগ্য মূল্য (AV)", en: "Assessable value" },
-  { key: "cd", bn: "আমদানি শুল্ক (CD)", en: "CD" },
-  { key: "rd", bn: "নিয়ন্ত্রণমূলক শুল্ক (RD)", en: "RD" },
-  { key: "sd", bn: "সম্পূরক শুল্ক (SD)", en: "SD" },
-  { key: "vat", bn: "মূসক (VAT)", en: "VAT" },
-  { key: "ait", bn: "অগ্রিম আয়কর (AIT)", en: "AIT" },
-  { key: "at", bn: "অগ্রিম কর (AT)", en: "AT" },
+  { key: "serial", bn: "ক্রমিক সংখ্যা", en: "Serial" },
+  { key: "date", bn: "তারিখ", en: "Date" },
+  { key: "openQty", bn: "পরিমাণ (একক)", en: "Opening quantity", group: "মজুদ উপকরণের প্রারম্ভিক জের" },
+  { key: "openVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Opening value", group: "মজুদ উপকরণের প্রারম্ভিক জের" },
+  { key: "boeNo", bn: "চালানপত্র/বিল অব এন্ট্রি নম্বর", en: "Challan / bill of entry no.", group: "ক্রয়কৃত উপকরণ" },
+  { key: "boeDate", bn: "তারিখ", en: "Challan / bill of entry date", group: "ক্রয়কৃত উপকরণ" },
+  { key: "supplierName", bn: "নাম", en: "Supplier name", group: "বিক্রেতা/সরবরাহকারী" },
+  { key: "supplierAddress", bn: "ঠিকানা", en: "Supplier address", group: "বিক্রেতা/সরবরাহকারী" },
+  { key: "supplierBin", bn: "নিবন্ধন/তালিকাভুক্তি/জাতীয় পরিচয়পত্র নং", en: "Supplier BIN/NID", group: "বিক্রেতা/সরবরাহকারী" },
+  { key: "description", bn: "বিবরণ", en: "Description", group: "ক্রয়কৃত উপকরণ" },
+  { key: "quantity", bn: "পরিমাণ", en: "Quantity", group: "ক্রয়কৃত উপকরণ" },
+  { key: "value", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Value excl. taxes (AV+CD+RD)", group: "ক্রয়কৃত উপকরণ" },
+  { key: "sd", bn: "সম্পূরকশুল্ক (যদি থাকে)", en: "SD", group: "ক্রয়কৃত উপকরণ" },
+  { key: "vat", bn: "মূসক", en: "VAT", group: "ক্রয়কৃত উপকরণ" },
+  { key: "totalQty", bn: "পরিমাণ (একক) =(৩+১১)", en: "Total quantity =(3+11)", group: "মোট উপকরণের পরিমাণ" },
+  { key: "totalVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত) =(৪+১২)", en: "Total value =(4+12)", group: "মোট উপকরণের পরিমাণ" },
+  { key: "useQty", bn: "পরিমাণ (একক)", en: "Quantity used", group: "পণ্য প্রস্তুত/প্রক্রিয়া করণে উপকরণের ব্যবহার" },
+  { key: "useVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Value used", group: "পণ্য প্রস্তুত/প্রক্রিয়া করণে উপকরণের ব্যবহার" },
+  { key: "closeQty", bn: "পরিমাণ (একক)", en: "Closing quantity", group: "উপকরণের প্রান্তিক জের" },
+  { key: "closeVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Closing value", group: "উপকরণের প্রান্তিক জের" },
+  { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
 ];
 
 // Mushak 4.3 (উপকরণ-উৎপাদ সহগ ঘোষণা) columns (1)-(12), read from the official form.
@@ -50,19 +58,29 @@ const COLS_43: Column[] = [
   { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
 ];
 
+// Mushak 6.2 (বিক্রয় হিসাব পুস্তক): columns (1)-(21). The printed closing formulas read (7-11) and (8-26), which are typos for (7-15) and (8-16).
 const COLS_62: Column[] = [
-  { key: "serial", bn: "ক্রমিক", en: "Serial" },
-  { key: "issueDate", bn: "তারিখ", en: "Date" },
-  { key: "challanNo", bn: "চালান নং", en: "Challan no." },
-  { key: "buyerName", bn: "ক্রেতার নাম", en: "Buyer" },
-  { key: "buyerBinNid", bn: "ক্রেতার বিআইএন/এনআইডি", en: "Buyer BIN/NID" },
-  { key: "description", bn: "পণ্যের বিবরণ", en: "Description" },
-  { key: "unit", bn: "একক", en: "Unit" },
-  { key: "quantity", bn: "পরিমাণ", en: "Quantity" },
-  { key: "value", bn: "মূল্য", en: "Value" },
-  { key: "sd", bn: "সম্পূরক শুল্ক", en: "SD" },
-  { key: "vat", bn: "মূসক", en: "VAT" },
-  { key: "total", bn: "মোট", en: "Total" },
+  { key: "serial", bn: "ক্রমিক সংখ্যা", en: "Serial" },
+  { key: "date", bn: "তারিখ", en: "Date" },
+  { key: "openQty", bn: "পরিমাণ (একক)", en: "Opening quantity", group: "উৎপাদিত পণ্য/সেবার প্রারম্ভিক জের" },
+  { key: "openVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Opening value", group: "উৎপাদিত পণ্য/সেবার প্রারম্ভিক জের" },
+  { key: "recvQty", bn: "পরিমাণ (একক)", en: "Quantity received", group: "উৎপাদন" },
+  { key: "recvVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত)", en: "Value received", group: "উৎপাদন" },
+  { key: "totalQty", bn: "পরিমাণ (একক) =(৩+৫)", en: "Total quantity =(3+5)", group: "মোট উৎপাদিত পণ্য/সেবা" },
+  { key: "totalVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত) =(৪+৬)", en: "Total value =(4+6)", group: "মোট উৎপাদিত পণ্য/সেবা" },
+  { key: "buyerName", bn: "নাম", en: "Buyer name", group: "ক্রেতা/সরবরাহগ্রহীতা" },
+  { key: "buyerAddress", bn: "ঠিকানা", en: "Buyer address", group: "ক্রেতা/সরবরাহগ্রহীতা" },
+  { key: "buyerBinNid", bn: "নিবন্ধন/তালিকাভুক্তি/জাতীয় পরিচয়পত্র নং", en: "Buyer BIN/NID", group: "ক্রেতা/সরবরাহগ্রহীতা" },
+  { key: "challanNo", bn: "নম্বর", en: "Challan no.", group: "চালানপত্রের বিবরণ" },
+  { key: "issueDate", bn: "তারিখ", en: "Challan date", group: "চালানপত্রের বিবরণ" },
+  { key: "description", bn: "বিবরণ", en: "Description", group: "বিক্রিত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "quantity", bn: "পরিমাণ", en: "Quantity", group: "বিক্রিত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "value", bn: "করযোগ্য মূল্য", en: "Taxable value", group: "বিক্রিত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "sd", bn: "সম্পূরক শুল্ক (যদি থাকে)", en: "SD", group: "বিক্রিত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "vat", bn: "মূসক", en: "VAT", group: "বিক্রিত/সরবরাহকৃত পণ্যের বিবরণ" },
+  { key: "closeQty", bn: "পরিমাণ (একক) =(৭-১৫)", en: "Closing quantity =(7-15)", group: "পণ্যের প্রান্তিক জের" },
+  { key: "closeVal", bn: "মূল্য (সকল প্রকার কর ব্যতীত) =(৮-১৬)", en: "Closing value =(8-16)", group: "পণ্যের প্রান্তিক জের" },
+  { key: "remarks", bn: "মন্তব্য", en: "Remarks" },
 ];
 
 // Mushak 6.3 line-item table. Bengali headings reconstructed from the official sample
@@ -128,30 +146,78 @@ export function buildBook(
     };
   }
   if (form === "6.1") {
-    const rows = doc.purchases
-      .filter((p) => inRange(p.boeDate))
-      .map((p, i) => ({ ...p, serial: i + 1 }));
+    const rows = purchaseLedger(doc)
+      .filter((r) => inRange(r.purchase.boeDate))
+      .map((r, i) => ({
+        serial: i + 1,
+        date: r.purchase.boeDate,
+        openQty: r.opening.qty,
+        openVal: r.opening.val,
+        boeNo: r.purchase.boeNo,
+        boeDate: r.purchase.boeDate,
+        supplierName: r.purchase.supplierName ?? "",
+        supplierAddress: r.purchase.supplierAddress ?? "",
+        supplierBin: "",
+        description: r.purchase.description,
+        quantity: r.purchase.quantity,
+        value: netValue(r.purchase),
+        sd: r.purchase.sd,
+        vat: r.purchase.vat,
+        totalQty: r.total.qty,
+        totalVal: r.total.val,
+        useQty: r.usage.qty,
+        useVal: r.usage.val,
+        closeQty: r.closing.qty,
+        closeVal: r.closing.val,
+        remarks: r.purchase.unit,
+      }));
     return {
       form,
       titleBn: "মূসক-৬.১ ক্রয় হিসাব পুস্তক",
       titleEn: "Mushak 6.1 Purchase Account Book",
       importer,
       columns: COLS_61,
-      rows: rows as unknown as Book["rows"],
-      totals: sum(rows, ["assessableValue", "cd", "rd", "sd", "vat", "ait", "at"]),
+      rows,
+      meta: { address: doc.address ?? "", subtitle: "পণ্য/সেবার উপকরণ ক্রয়" },
+      totals: sum(rows, ["quantity", "value", "sd", "vat", "useQty", "useVal"]),
     };
   }
   const invoices = doc.invoices.filter((i) => inRange(i.issueDate));
   if (form === "6.2") {
-    const rows = invoices.map((i, n) => ({ ...i, serial: n + 1 }));
+    const rows = salesLedger(doc)
+      .filter((r) => inRange(r.invoice.issueDate))
+      .map((r, n) => ({
+        serial: n + 1,
+        date: r.invoice.issueDate,
+        openQty: r.opening.qty,
+        openVal: r.opening.val,
+        recvQty: r.received.qty,
+        recvVal: r.received.val,
+        totalQty: r.total.qty,
+        totalVal: r.total.val,
+        buyerName: r.invoice.buyerName,
+        buyerAddress: r.invoice.deliveryAddress,
+        buyerBinNid: r.invoice.buyerBinNid,
+        challanNo: r.invoice.challanNo,
+        issueDate: r.invoice.issueDate,
+        description: r.invoice.description,
+        quantity: r.invoice.quantity,
+        value: r.invoice.value,
+        sd: r.invoice.sd,
+        vat: r.invoice.vat,
+        closeQty: r.closing.qty,
+        closeVal: r.closing.val,
+        remarks: r.invoice.unit,
+      }));
     return {
       form,
       titleBn: "মূসক-৬.২ বিক্রয় হিসাব পুস্তক",
       titleEn: "Mushak 6.2 Sales Account Book",
       importer,
       columns: COLS_62,
-      rows: rows as unknown as Book["rows"],
-      totals: sum(rows, ["quantity", "value", "sd", "vat", "total"]),
+      rows,
+      meta: { address: doc.address ?? "", subtitle: "পণ্য/সেবার বিক্রয়" },
+      totals: sum(rows, ["quantity", "value", "sd", "vat"]),
     };
   }
   const lines = invoices.map((i) => ({ ...i, lineNo: 1 }));
@@ -184,7 +250,9 @@ const csvCell = (v: unknown) => {
 
 export function toCsv(book: Book): string {
   const cols = book.form === "6.3" ? [...CHALLAN_HEADER, ...book.columns] : book.columns;
-  const header = cols.map((c) => csvCell(`${c.bn} / ${c.en}`)).join(",");
+  const header = cols
+    .map((c) => csvCell(`${c.group ? `${c.group} - ` : ""}${c.bn} / ${c.en}`))
+    .join(",");
   const lines = book.rows.map((r) => cols.map((c) => csvCell(r[c.key])).join(","));
   return `\uFEFF${[header, ...lines].join("\r\n")}\r\n`;
 }
@@ -235,7 +303,14 @@ export function toHtml(book: Book): string {
       .join("");
     return wrap(cards);
   }
-  const th = book.columns.map((c) => `<th>${esc(c.bn)}</th>`).join("");
+  const hasGroups = book.columns.some((c) => c.group);
+  const groupRow = hasGroups ? `<tr>${groupCells(book.columns)}</tr>` : "";
+  const th = book.columns
+    .map((c, i) => `<th>${hasGroups ? `(${i + 1})<br>` : ""}${esc(c.bn)}</th>`)
+    .join("");
+  const info = hasGroups
+    ? `<p>প্রতিষ্ঠানের নাম: ${esc(book.importer.name)}<br>ঠিকানা: ${esc(book.meta?.address)}<br>ব্যবসা সনাক্তকরণ সংখ্যা (BIN): ${esc(book.importer.bin)}<br>${esc(book.meta?.subtitle)}</p>`
+    : "";
   const trs = book.rows
     .map(
       (r) =>
@@ -249,5 +324,17 @@ export function toHtml(book: Book): string {
       i === 0 ? "<td><b>মোট</b></td>" : `<td class="num"><b>${esc(book.totals[c.key] ?? "")}</b></td>`,
     )
     .join("");
-  return wrap(`<table><thead><tr>${th}</tr></thead><tbody>${trs}<tr>${total}</tr></tbody></table>`);
+  return wrap(`${info}<table><thead>${groupRow}<tr>${th}</tr></thead><tbody>${trs}<tr>${total}</tr></tbody></table>`);
+}
+
+function groupCells(columns: Column[]): string {
+  const cells: string[] = [];
+  for (let i = 0; i < columns.length; ) {
+    const g = columns[i]?.group ?? "";
+    let j = i;
+    while (j < columns.length && (columns[j]?.group ?? "") === g) j++;
+    cells.push(`<th colspan="${j - i}">${esc(g)}</th>`);
+    i = j;
+  }
+  return cells.join("");
 }

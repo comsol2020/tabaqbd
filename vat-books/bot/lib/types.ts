@@ -14,6 +14,7 @@ export type PurchaseLine = {
   boeDate: string;
   customsHouse?: string;
   supplierName?: string;
+  supplierAddress?: string;
   description: string;
   hsCode?: string;
   unit: string;

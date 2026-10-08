@@ -30,6 +30,7 @@ export default defineTool({
       date: z.string().describe("YYYY-MM-DD"),
       customsHouse: z.string().optional(),
       supplierName: z.string().optional(),
+      supplierAddress: z.string().optional().describe("Exporter's address as printed (box 2)"),
       valueAdditionPct: z
         .number()
         .min(0)
@@ -106,6 +107,7 @@ export default defineTool({
         boeDate: boe.date,
         customsHouse: boe.customsHouse,
         supplierName: boe.supplierName,
+        supplierAddress: boe.supplierAddress,
         description: it.description,
         hsCode: it.hsCode,
         unit: it.unit,
