@@ -39,6 +39,12 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    or 6.3 (challans). CSV and printable HTML are published automatically on every
    save and confirmed sale; report the artifact ids. `export_books` only on request.
 
+7. **Monthly report**: for the operator's manual entries (nothing is sent to any
+   portal). `monthly_report` with a month (and a BIN) gives, per item: imports (for
+   the 4.22 entry), sales totals (for the 3.8 entry) and stock. Items are always
+   shown separately because each has its own stock. Without a BIN it summarises
+   every importer. Show the per-item tables in chat and report the artifact ids.
+
 ## Rules
 
 - Sales must reflect real transactions the operator confirms. Never create

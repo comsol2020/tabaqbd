@@ -1,3 +1,4 @@
+import { monthlyReport, reportHtml, reportXlsx } from "../bot/lib/report.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildBook, toCsv, toHtml, toXlsx } from "../bot/lib/forms.js";
@@ -12,6 +13,7 @@ import {
 import type { ImporterDoc } from "../bot/lib/types.js";
 import {
   computeSale,
+  round2,
   declaredPrice,
   dutyTotal,
   impliedImportVatRate,
@@ -223,4 +225,40 @@ test("xlsx export is a valid zip with the form's header rows and data", () => {
   assert.ok(text.includes("ক্রেতার তথ্য"));
   assert.ok(text.includes("(26)"));
   assert.ok(text.includes("mergeCell"));
+});
+
+test("monthly report keeps items separate with their own stock", () => {
+  const doc = fixture();
+  doc.purchases.push({
+    ...doc.purchases[0]!,
+    lineId: "B2|2026-02-10#1",
+    boeKey: "B2|2026-02-10",
+    serial: 2,
+    boeNo: "B2",
+    boeDate: "2026-02-10",
+    description: "Marble",
+    hsCode: "2515",
+    unit: "kg",
+    quantity: 200,
+    assessableValue: 20000,
+    cd: 0,
+    declaredUnitPrice: 150,
+  });
+  confirmSales(doc, req, "req-1-xxxxxxxx");
+  confirmSales(doc, { ...req, lineId: "B2|2026-02-10#1", count: 1, quantityPerSale: 5, issueDate: "2026-02-15" }, "req-2-xxxxxxxx");
+  const r = monthlyReport(doc, "2026-02");
+  assert.equal(r.items.length, 2);
+  const [cotton, marble] = r.items;
+  assert.equal(cotton?.soldQty, 30);
+  assert.equal(cotton?.openQty, 1000);
+  assert.equal(cotton?.closeQty, 970);
+  assert.equal(cotton?.importedQty, 0);
+  assert.equal(marble?.importedQty, 200);
+  assert.equal(marble?.soldQty, 5);
+  assert.equal(marble?.closeQty, 195);
+  assert.equal(r.totals.challans, 4);
+  assert.equal(r.totals.soldValue, round2(cotton!.soldValue + marble!.soldValue));
+  assert.equal(monthlyReport(doc, "2026-01").items[0]?.importedQty, 1000);
+  assert.ok(Buffer.from(reportXlsx(r)).subarray(0, 2).toString() === "PK");
+  assert.ok(reportHtml(r).includes("৩.৮"));
 });

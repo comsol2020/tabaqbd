@@ -94,6 +94,7 @@ export function salesLedger(doc: ImporterDoc): SalesLedgerRow[] {
 }
 
 export type TradeRow = {
+  key: string;
   kind: "purchase" | "sale";
   date: string;
   opening: Stock;
@@ -121,12 +122,12 @@ export function tradeLedger(doc: ImporterDoc): TradeRow[] {
         val: round2(opening.val + netValue(e.purchase)),
       };
       state.set(key, total);
-      return { kind: "purchase", date: e.date, opening, total, closing: total, purchase: e.purchase };
+      return { key, kind: "purchase", date: e.date, opening, total, closing: total, purchase: e.purchase };
     }
     const inv = e.invoice!;
     const outVal = opening.qty > 0 ? round2((inv.quantity * opening.val) / opening.qty) : 0;
     const closing = { qty: round2(opening.qty - inv.quantity), val: round2(opening.val - outVal) };
     state.set(key, closing);
-    return { kind: "sale", date: e.date, opening, total: opening, closing, invoice: inv };
+    return { key, kind: "sale", date: e.date, opening, total: opening, closing, invoice: inv };
   });
 }
