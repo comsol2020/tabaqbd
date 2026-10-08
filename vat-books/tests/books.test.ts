@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildBook, toCsv, toHtml } from "../bot/lib/forms.js";
+import { buildBook, toCsv, toHtml, toXlsx } from "../bot/lib/forms.js";
 import { confirmSales, planSales } from "../bot/lib/sales.js";
 import {
   createImporter,
@@ -212,4 +212,15 @@ test("6.2.1 is one chronological register with 26 columns and a running stock", 
   assert.equal(s3?.closeQty, 970);
   assert.equal(s2?.buyQty, "");
   assert.ok(toHtml(b).includes("ক্রেতার তথ্য"));
+});
+
+test("xlsx export is a valid zip with the form's header rows and data", () => {
+  const doc = fixture();
+  confirmSales(doc, req, "req-1-xxxxxxxx");
+  const bytes = toXlsx(buildBook(doc, "6.2.1"));
+  assert.equal(Buffer.from(bytes.subarray(0, 2)).toString(), "PK");
+  const text = Buffer.from(bytes).toString("utf8");
+  assert.ok(text.includes("ক্রেতার তথ্য"));
+  assert.ok(text.includes("(26)"));
+  assert.ok(text.includes("mergeCell"));
 });

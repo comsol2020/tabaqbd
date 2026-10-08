@@ -1,3 +1,4 @@
+import { type Cell, buildXlsx } from "./xlsx.js";
 import { netValue, purchaseLedger, salesLedger, tradeLedger } from "./ledger.js";
 import type { ImporterDoc } from "./types.js";
 
@@ -413,4 +414,43 @@ function groupCells(columns: Column[]): string {
     i = j;
   }
   return cells.join("");
+}
+
+/** Spreadsheet with the form's own header rows (group, label, column number) followed by the data. */
+export function toXlsx(book: Book): Uint8Array {
+  const cols = book.form === "6.3" ? [...CHALLAN_HEADER, ...book.columns] : book.columns;
+  const rows: Cell[][] = [];
+  const merges: string[] = [];
+  const colRef = (i: number) => {
+    let n = i + 1;
+    let s = "";
+    while (n > 0) {
+      s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  };
+  if (cols.some((c) => c.group)) {
+    const groupRow: Cell[] = cols.map(() => "");
+    for (let i = 0; i < cols.length; ) {
+      const g = cols[i]?.group ?? "";
+      let j = i;
+      while (j < cols.length && (cols[j]?.group ?? "") === g) j++;
+      groupRow[i] = g;
+      if (j - i > 1) merges.push(`${colRef(i)}${rows.length + 1}:${colRef(j - 1)}${rows.length + 1}`);
+      i = j;
+    }
+    rows.push(groupRow);
+  }
+  rows.push(cols.map((c) => c.bn));
+  rows.push(cols.map((_, i) => `(${i + 1})`));
+  for (const r of book.rows) {
+    rows.push(cols.map((c): Cell => (r[c.key] as Cell) ?? ""));
+  }
+  return buildXlsx({
+    name: `Mushak ${book.form}`,
+    rows,
+    merges,
+    widths: cols.map((c) => Math.max(12, Math.min(40, c.bn.length))),
+  });
 }

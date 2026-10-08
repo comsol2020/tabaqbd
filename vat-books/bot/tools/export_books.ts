@@ -10,7 +10,7 @@ const FORMS: FormId[] = ["4.3", "6.1", "6.2", "6.2.1", "6.3"];
 
 export default defineTool({
   description: prompt`
-    Re-publish an importer's books (4.3, 6.1, 6.2, 6.2.1, 6.3) as downloadable CSV and
+    Re-publish an importer's books (4.3, 6.1, 6.2, 6.2.1, 6.3) as downloadable Excel (.xlsx), CSV and
     printable HTML. Books are already published automatically when a bill of
     entry is saved or sales are confirmed, so call this only on request.
   `,

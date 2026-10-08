@@ -1,8 +1,8 @@
 import type { ToolContext } from "@cursor/bdk/tools";
-import { type FormId, buildBook, toCsv, toHtml } from "./forms.js";
+import { type FormId, buildBook, toCsv, toHtml, toXlsx } from "./forms.js";
 import type { ImporterDoc } from "./types.js";
 
-export type PublishedBook = { form: FormId; ext: "csv" | "html"; artifactId: string; rows: number };
+export type PublishedBook = { form: FormId; ext: "csv" | "html" | "xlsx"; artifactId: string; rows: number };
 
 export async function publishBooks(
   artifacts: ToolContext["artifacts"],
@@ -15,6 +15,11 @@ export async function publishBooks(
     for (const [ext, contents, contentType] of [
       ["csv", toCsv(book), "text/csv; charset=utf-8"],
       ["html", toHtml(book), "text/html; charset=utf-8"],
+      [
+        "xlsx",
+        toXlsx(book),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ],
     ] as const) {
       const record = await artifacts.tag({
         kind: "book",
