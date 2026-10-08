@@ -1,14 +1,18 @@
 import { productKey, tradeLedger } from "./ledger.js";
-import type { ImporterDoc } from "./types.js";
+import type { ImporterDoc, Invoice } from "./types.js";
 import { round2 } from "./vat.js";
 import { type Cell, buildXlsx } from "./xlsx.js";
 
 export type ImportLine = {
   boeNo: string;
   boeDate: string;
+  officeCode: string;
+  itemNo: number;
+  cpcCode: string;
   supplier: string;
   quantity: number;
   assessableValue: number;
+  value: number;
   cd: number;
   rd: number;
   sd: number;
@@ -17,11 +21,20 @@ export type ImportLine = {
   at: number;
 };
 
+export type SalesGroup = {
+  category: string;
+  quantity: number;
+  value: number;
+  sd: number;
+  vat: number;
+};
+
 export type ItemReport = {
   item: string;
   hsCode: string;
   unit: string;
   imports: ImportLine[];
+  salesGroups: SalesGroup[];
   importedQty: number;
   importedValue: number;
   importedVat: number;
@@ -51,10 +64,38 @@ export type MonthlyReport = {
     soldSd: number;
     soldVat: number;
     soldTotal: number;
+    inputValue: number;
+    inputSd: number;
+    inputVat: number;
+    advanceTax: number;
+  };
+  notes: {
+    note8: { value: number; sd: number; vat: number };
+    note22: { value: number };
+    note30: number;
+    note34: number;
   };
 };
 
+const categoryName = (vatRate: number, sdRate: number) =>
+  `Commercial Importer/Other Traders (VAT ${vatRate}%, SD ${sdRate}%)`;
+
 const sum = (xs: number[]) => round2(xs.reduce((a, b) => a + b, 0));
+
+function groupSales(sales: Invoice[]): SalesGroup[] {
+  const groups = new Map<string, Invoice[]>();
+  for (const i of sales) {
+    const k = categoryName(i.vatRate, i.sdRate);
+    groups.set(k, [...(groups.get(k) ?? []), i]);
+  }
+  return [...groups].map(([category, xs]) => ({
+    category,
+    quantity: sum(xs.map((i) => i.quantity)),
+    value: sum(xs.map((i) => i.value)),
+    sd: sum(xs.map((i) => i.sd)),
+    vat: sum(xs.map((i) => i.vat)),
+  }));
+}
 
 export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("month must be YYYY-MM");
@@ -86,9 +127,13 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
       imports: purchases.map((p) => ({
         boeNo: p.boeNo,
         boeDate: p.boeDate,
+        officeCode: p.officeCode ?? "",
+        itemNo: Number(p.lineId.split("#")[1] ?? 1),
+        cpcCode: p.cpcCode ?? "",
         supplier: p.supplierName ?? "",
         quantity: p.quantity,
         assessableValue: p.assessableValue,
+        value: round2(p.assessableValue + p.cd + p.rd + p.sd),
         cd: p.cd,
         rd: p.rd,
         sd: p.sd,
@@ -96,6 +141,7 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
         ait: p.ait,
         at: p.at,
       })),
+      salesGroups: groupSales(sales),
       importedQty: sum(purchases.map((p) => p.quantity)),
       importedValue: sum(purchases.map((p) => p.assessableValue)),
       importedVat: sum(purchases.map((p) => p.vat)),
@@ -113,6 +159,11 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
     });
   }
   const allLines = items.flatMap((i) => i.imports);
+  const soldValue = sum(items.map((i) => i.soldValue));
+  const soldSd = sum(items.map((i) => i.soldSd));
+  const soldVat = sum(items.map((i) => i.soldVat));
+  const inputValue = sum(allLines.map((l) => l.value));
+  const advanceTax = sum(allLines.map((l) => l.at));
   return {
     month,
     importer: { bin: doc.bin, name: doc.name },
@@ -122,10 +173,20 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
       importedDuties: sum(allLines.map((l) => l.cd + l.rd + l.sd + l.ait + l.at)),
       importedVat: sum(allLines.map((l) => l.vat)),
       challans: items.reduce((s, i) => s + i.challans, 0),
-      soldValue: sum(items.map((i) => i.soldValue)),
-      soldSd: sum(items.map((i) => i.soldSd)),
-      soldVat: sum(items.map((i) => i.soldVat)),
+      soldValue,
+      soldSd,
+      soldVat,
       soldTotal: sum(items.map((i) => i.soldTotal)),
+      inputValue,
+      inputSd: sum(allLines.map((l) => l.sd)),
+      inputVat: sum(allLines.map((l) => l.vat)),
+      advanceTax,
+    },
+    notes: {
+      note8: { value: soldValue, sd: soldSd, vat: soldVat },
+      note22: { value: inputValue },
+      note30: advanceTax,
+      note34: round2(soldVat - advanceTax),
     },
   };
 }
@@ -133,31 +194,46 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
 type Table = { title: string; head: string[]; rows: Cell[][] };
 
 function tables(r: MonthlyReport): Table[] {
-  const sales: Table = {
-    title: "বিক্রয় (৩.৮ এর এন্ট্রির জন্য) / Sales for the month, by item",
-    head: ["পণ্য", "একক", "চালান সংখ্যা", "বিক্রিত পরিমাণ", "করযোগ্য মূল্য", "সম্পূরক শুল্ক", "মূসক", "মোট"],
+  const n = r.notes;
+  const summary: Table = {
+    title: "রিটার্নের নোট (৯.১) / Return notes for the month",
+    head: ["নোট", "বিবরণ", "মূল্য (a)", "SD (b)", "VAT (c)"],
     rows: [
-      ...r.items.map((i): Cell[] => [i.item, i.unit, i.challans, i.soldQty, i.soldValue, i.soldSd, i.soldVat, i.soldTotal]),
-      ["সর্বমোট", "", r.totals.challans, "", r.totals.soldValue, r.totals.soldSd, r.totals.soldVat, r.totals.soldTotal],
+      ["8 / 9", "Retail/Wholesale/Trade Based Supply - মোট বিক্রয় (সাব-ফরম ৩.৮ এর মোট)", n.note8.value, n.note8.sd, n.note8.vat],
+      ["22", "Goods/Service Not Admissible for Credit - Import (সাব-ফরম ৪.২২ এর মোট)", n.note22.value, "", ""],
+      ["30", "Advance Tax Paid at Import Stage (৪.২২ এর AT মোট)", "", "", n.note30],
+      ["34", "Net Payable VAT = 9(c) - 23(b) + 28 - 33 (ইনপুট ক্রেডিট না নিলে, অন্য অ্যাডজাস্টমেন্ট ছাড়া)", "", "", n.note34],
     ],
   };
-  const imports: Table = {
-    title: "আমদানি/ক্রয় (৪.২২ এর এন্ট্রির জন্য) / Imports for the month, by item",
-    head: ["পণ্য", "এইচ.এস. কোড", "বিল অব এন্ট্রি নং", "তারিখ", "সরবরাহকারী", "একক", "পরিমাণ", "শুল্কায়নযোগ্য মূল্য", "CD", "RD", "SD", "মূসক", "AIT", "AT"],
-    rows: r.items.flatMap((i): Cell[][] => {
-      if (i.imports.length === 0) return [];
-      return [
-        ...i.imports.map((l): Cell[] => [i.item, i.hsCode, l.boeNo, l.boeDate, l.supplier, i.unit, l.quantity, l.assessableValue, l.cd, l.rd, l.sd, l.vat, l.ait, l.at]),
-        [`${i.item} - মোট`, "", "", "", "", i.unit, i.importedQty, i.importedValue, sum(i.imports.map((l) => l.cd)), sum(i.imports.map((l) => l.rd)), sum(i.imports.map((l) => l.sd)), i.importedVat, sum(i.imports.map((l) => l.ait)), sum(i.imports.map((l) => l.at))],
-      ];
-    }),
+  const sub38: Table = {
+    title: "সাব-ফরম ৩.৮: Retail/Wholesale/Trade Based Supply",
+    head: ["Category Name", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Value (a)", "SD (b)", "VAT (c)", "বিক্রিত পরিমাণ", "একক", "চালান সংখ্যা"],
+    rows: [
+      ...r.items.flatMap((i) =>
+        i.salesGroups.map((g): Cell[] => [g.category, i.item, i.hsCode, i.item, g.value, g.sd, g.vat, g.quantity, i.unit, i.challans]),
+      ),
+      ["TOTAL", "", "", "", n.note8.value, n.note8.sd, n.note8.vat, "", "", r.totals.challans],
+    ],
+  };
+  const sub422: Table = {
+    title: "সাব-ফরম ৪.২২: Import (Not Admissible for Credit)",
+    head: ["Data Source", "BoE Number", "BoE Date", "BoE Office Code", "BoE Item No", "CPC Code", "Goods/Service Commercial Description", "Goods/Service Code", "Goods/Service Name", "Assessable Value", "Value (a)", "SD (b)", "VAT (c)", "AT", "পরিমাণ", "একক"],
+    rows: [
+      ...r.items.flatMap((i) =>
+        i.imports.map((l): Cell[] => [
+          "Import against Bill of E", l.boeNo, l.boeDate, l.officeCode, l.itemNo, l.cpcCode, i.item, i.hsCode, i.item,
+          l.assessableValue, l.value, l.sd, l.vat, l.at, l.quantity, i.unit,
+        ]),
+      ),
+      ["TOTAL", "", "", "", "", "", "", "", "", sum(r.items.flatMap((i) => i.imports.map((l) => l.assessableValue))), r.totals.inputValue, r.totals.inputSd, r.totals.inputVat, r.totals.advanceTax, "", ""],
+    ],
   };
   const stock: Table = {
     title: "মজুদ (প্রতিটি পণ্যের আলাদা) / Stock by item",
     head: ["পণ্য", "একক", "মাসের শুরুর পরিমাণ", "শুরুর মূল্য", "আমদানি পরিমাণ", "বিক্রিত পরিমাণ", "বিক্রিত পণ্যের ক্রয়মূল্য", "মাসের শেষ পরিমাণ", "শেষ মূল্য"],
     rows: r.items.map((i): Cell[] => [i.item, i.unit, i.openQty, i.openVal, i.importedQty, i.soldQty, i.soldCost, i.closeQty, i.closeVal]),
   };
-  return [sales, imports, stock];
+  return [summary, sub38, sub422, stock];
 }
 
 const esc = (v: unknown) =>
@@ -180,7 +256,7 @@ export function reportXlsx(r: MonthlyReport): Uint8Array {
   for (const t of tables(r)) {
     rows.push([t.title], t.head, ...t.rows, []);
   }
-  return buildXlsx({ name: `Report ${r.month}`, rows, widths: [28, 14, 16, 14, 18, 14, 14, 18, 14, 10, 10, 12, 10, 10] });
+  return buildXlsx({ name: `Report ${r.month}`, rows, widths: [34, 30, 18, 24, 16, 14, 30, 16, 24, 16, 14, 12, 12, 12, 12, 8] });
 }
 
 export type SummaryRow = { bin: string; name: string; importedValue: number; importedVat: number; challans: number; soldValue: number; soldVat: number; soldTotal: number };

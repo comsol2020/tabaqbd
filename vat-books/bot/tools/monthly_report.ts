@@ -7,11 +7,11 @@ import { normalizeBin } from "../lib/vat.js";
 
 export default defineTool({
   description: prompt`
-    Monthly purchase and sales report for the operator's manual entry (no
-    portal involved). With a bin: per item, the month's imports (for the
-    4.22 entry), the month's sales totals (for the 3.8 entry), and the stock
-    (opening, imported, sold, closing), each item kept separate because each
-    item has its own stock. Without a bin: one summary row per importer.
+    Monthly report for the operator's manual Mushak 9.1 entry (no portal
+    involved), laid out like the return. With a bin: the return notes, sub-form
+    3.8 (sales per item), sub-form 4.22 (imports per bill of entry item) and
+    stock (opening, imported, sold, closing), each item kept separate because
+    each item has its own stock. Without a bin: one summary row per importer.
     Publishes an Excel file and a printable page.
   `,
   effect: "write",

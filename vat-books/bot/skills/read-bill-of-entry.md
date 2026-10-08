@@ -30,3 +30,7 @@ Layout of the common form ("BILL OF ENTRY / EXPORT"), phone photos included:
   fees; do not use it.
 - If the photo is blurry, cropped, or the BIN is not 13 digits, ask for a
   better scan. Do not fill gaps.
+
+- **Office code / CPC code**: pass `officeCode` and `cpcCode` to the save tool
+  only if they are printed on the scan or the operator gives them; they appear in
+  return sub-form 4.22 and are left blank otherwise.

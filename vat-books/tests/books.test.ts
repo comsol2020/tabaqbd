@@ -261,4 +261,9 @@ test("monthly report keeps items separate with their own stock", () => {
   assert.equal(monthlyReport(doc, "2026-01").items[0]?.importedQty, 1000);
   assert.ok(Buffer.from(reportXlsx(r)).subarray(0, 2).toString() === "PK");
   assert.ok(reportHtml(r).includes("৩.৮"));
+  assert.equal(r.notes.note8.value, r.totals.soldValue);
+  assert.equal(r.notes.note34, round2(r.totals.soldVat - r.totals.advanceTax));
+  const line = marble!.imports[0]!;
+  assert.equal(line.value, round2(line.assessableValue + doc.purchases[1]!.cd + doc.purchases[1]!.rd + doc.purchases[1]!.sd));
+  assert.equal(cotton?.salesGroups.length, 1);
 });
