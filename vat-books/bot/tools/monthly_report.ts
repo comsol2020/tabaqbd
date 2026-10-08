@@ -47,16 +47,21 @@ export default defineTool({
     for (const b of await listBins(kv)) {
       const doc = await loadImporter(kv, b);
       if (!doc) continue;
-      const t = monthlyReport(doc, month).totals;
+      const r = monthlyReport(doc, month);
+      const t = r.totals;
       rows.push({
         bin: doc.bin,
         name: doc.name,
         importedValue: t.importedValue,
         importedVat: t.importedVat,
+        boeCount: t.boeCount,
         challans: t.challans,
         soldValue: t.soldValue,
         soldVat: t.soldVat,
         soldTotal: t.soldTotal,
+        boeFee: r.bill.boeFee,
+        challanFee: r.bill.challanFee,
+        billTotal: r.bill.total,
       });
     }
     const a = await ctx.artifacts.tag({

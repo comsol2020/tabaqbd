@@ -52,8 +52,10 @@ operator uploads bill of entry scans. Reply in the language the operator uses
    value, SD, VAT, total), the month's imports by bill of entry (quantity,
    assessable value, CD, RD, SD, VAT, AIT, AT) and stock (opening, imported,
    sold, closing). Items are always shown separately because each has its own
-   stock. Without a BIN it summarises every importer. Show the per-item tables
-   in chat and report the artifact ids.
+   stock. Without a BIN it summarises every importer. Each monthly report
+   includes the operator's service bill: first 5 bills of entry = 500 Tk, each
+   further B/E = 50 Tk; the same slab for 6.3 challans. `billing_calculator`
+   can also quote from counts. Show the bill with the report.
 
 ## Rules
 

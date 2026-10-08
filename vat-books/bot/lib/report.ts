@@ -1,3 +1,4 @@
+import { type ServiceBill, serviceBill } from "./billing.js";
 import { productKey, tradeLedger } from "./ledger.js";
 import type { ImporterDoc } from "./types.js";
 import { round2 } from "./vat.js";
@@ -56,7 +57,9 @@ export type MonthlyReport = {
     inputSd: number;
     inputVat: number;
     advanceTax: number;
+    boeCount: number;
   };
+  bill: ServiceBill;
 };
 
 const sum = (xs: number[]) => round2(xs.reduce((a, b) => a + b, 0));
@@ -119,6 +122,8 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
     });
   }
   const allLines = items.flatMap((i) => i.imports);
+  const boeCount = new Set(doc.purchases.filter((p) => p.boeDate.slice(0, 7) === month).map((p) => p.boeKey)).size;
+  const challans = doc.invoices.filter((i) => i.issueDate.slice(0, 7) === month).length;
   const soldValue = sum(items.map((i) => i.soldValue));
   const soldSd = sum(items.map((i) => i.soldSd));
   const soldVat = sum(items.map((i) => i.soldVat));
@@ -132,7 +137,7 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
       importedValue: sum(allLines.map((l) => l.assessableValue)),
       importedDuties: sum(allLines.map((l) => l.cd + l.rd + l.sd + l.ait + l.at)),
       importedVat: sum(allLines.map((l) => l.vat)),
-      challans: items.reduce((s, i) => s + i.challans, 0),
+      challans,
       soldValue,
       soldSd,
       soldVat,
@@ -141,7 +146,9 @@ export function monthlyReport(doc: ImporterDoc, month: string): MonthlyReport {
       inputSd: sum(allLines.map((l) => l.sd)),
       inputVat: sum(allLines.map((l) => l.vat)),
       advanceTax,
+      boeCount,
     },
+    bill: serviceBill(boeCount, challans),
   };
 }
 
@@ -156,6 +163,15 @@ function tables(r: MonthlyReport): Table[] {
       ["মোট বিক্রয় (করযোগ্য মূল্য)", t.soldValue, t.soldSd, t.soldVat],
       ["মোট আমদানি (মূল্য + CD + RD + SD)", t.inputValue, t.inputSd, t.inputVat],
       ["আমদানিতে অগ্রিম কর (AT)", t.advanceTax, "", ""],
+    ],
+  };
+  const bill: Table = {
+    title: "সার্ভিস বিল (এই মাস) / Service bill",
+    head: ["বিবরণ", "সংখ্যা", "টাকা"],
+    rows: [
+      ["বিল অব এন্ট্রি বাবদ (প্রথম ৫টি ৫০০, তারপর প্রতিটি ৫০)", r.bill.boeCount, r.bill.boeFee],
+      ["চালান (৬.৩) বাবদ (প্রথম ৫টি ৫০০, তারপর প্রতিটি ৫০)", r.bill.challanCount, r.bill.challanFee],
+      ["সর্বমোট", "", r.bill.total],
     ],
   };
   const sales: Table = {
@@ -185,7 +201,7 @@ function tables(r: MonthlyReport): Table[] {
     head: ["পণ্য", "একক", "মাসের শুরুর পরিমাণ", "শুরুর মূল্য", "আমদানি পরিমাণ", "বিক্রিত পরিমাণ", "বিক্রিত পণ্যের ক্রয়মূল্য", "মাসের শেষ পরিমাণ", "শেষ মূল্য"],
     rows: r.items.map((i): Cell[] => [i.item, i.unit, i.openQty, i.openVal, i.importedQty, i.soldQty, i.soldCost, i.closeQty, i.closeVal]),
   };
-  return [summary, sales, imports, stock];
+  return [summary, bill, sales, imports, stock];
 }
 
 const esc = (v: unknown) =>
@@ -211,10 +227,23 @@ export function reportXlsx(r: MonthlyReport): Uint8Array {
   return buildXlsx({ name: `Report ${r.month}`, rows, widths: [34, 16, 18, 14, 22, 12, 14, 18, 14, 12, 12, 12, 12, 12] });
 }
 
-export type SummaryRow = { bin: string; name: string; importedValue: number; importedVat: number; challans: number; soldValue: number; soldVat: number; soldTotal: number };
+export type SummaryRow = {
+  bin: string;
+  name: string;
+  importedValue: number;
+  importedVat: number;
+  boeCount: number;
+  challans: number;
+  soldValue: number;
+  soldVat: number;
+  soldTotal: number;
+  boeFee: number;
+  challanFee: number;
+  billTotal: number;
+};
 
 export function summaryXlsx(month: string, rows: SummaryRow[]): Uint8Array {
-  const head = ["BIN", "আমদানিকারক", "আমদানির শুল্কায়নযোগ্য মূল্য", "আমদানির মূসক", "চালান সংখ্যা", "বিক্রয়ের করযোগ্য মূল্য", "বিক্রয়ের মূসক", "বিক্রয় মোট"];
-  const data = rows.map((r): Cell[] => [r.bin, r.name, r.importedValue, r.importedVat, r.challans, r.soldValue, r.soldVat, r.soldTotal]);
+  const head = ["BIN", "আমদানিকারক", "বিল অব এন্ট্রি", "চালান", "বিল অব এন্ট্রি বাবদ", "চালান বাবদ", "সার্ভিস বিল মোট", "আমদানির শুল্কায়নযোগ্য মূল্য", "বিক্রয় মোট"];
+  const data = rows.map((r): Cell[] => [r.bin, r.name, r.boeCount, r.challans, r.boeFee, r.challanFee, r.billTotal, r.importedValue, r.soldTotal]);
   return buildXlsx({ name: `Summary ${month}`, rows: [[`সব আমদানিকারক - ${month}`], head, ...data], widths: [16, 30, 20, 16, 12, 20, 16, 16] });
 }
