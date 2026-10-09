@@ -9,6 +9,7 @@ import { type FormId, buildBook, toHtml } from "../bot/lib/forms.js";
 import { recordDeletion } from "../bot/lib/mirror.js";
 import { assertMonth, monthRange, partyActivity, previewReset, applyReset } from "../bot/lib/month.js";
 import { htmlToPdf } from "../bot/lib/pdf.js";
+import { listPersonal, personalFile, personalInline, removePersonal, savePersonal } from "../bot/lib/personal.js";
 import { importerPinMatches, operatorPinConfigured, operatorPinMatches, setImporterPin, setOperatorPin } from "../bot/lib/pins.js";
 import { monthlyReport, reportHtml } from "../bot/lib/report.js";
 import { addCustomers, listBins, loadImporter, loadSharedCustomers, removeCustomer, saveImporter, type Kv } from "../bot/lib/store.js";
@@ -81,7 +82,15 @@ async function handle(
   if (method === "GET" && url.pathname === "/") return sendHtml(res, 200, loginPage(url.searchParams.get("msg")));
   if (method === "POST" && url.pathname === "/login") return userLogin(req, res, ctx);
   if (method === "POST" && url.pathname === "/logout") return logout(res, "sid", "/");
-  if (method === "GET" && url.pathname === "/app") return userHome(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/app") return userInstructions(req, res, url);
+  if (method === "GET" && url.pathname === "/app/upload") return userUploadPage(req, res, url);
+  if (method === "GET" && url.pathname === "/app/submissions") return userSubmissions(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/app/report") return userReportPage(req, res, url);
+  if (method === "GET" && url.pathname === "/app/docs") return userDocsPage(req, res, ctx, url);
+  if (method === "POST" && url.pathname === "/app/docs") return userDocsSave(req, res, ctx);
+  if (method === "GET" && url.pathname.startsWith("/app/docs/file/")) {
+    return sendPersonal(req, res, ctx, url.pathname.slice("/app/docs/file/".length), false, url.searchParams.get("download") === "1");
+  }
   if (method === "POST" && url.pathname === "/upload") return userUpload(req, res, ctx);
   if (method === "GET" && url.pathname === "/download") return userDownload(req, res, ctx, url);
   if (method === "GET" && url.pathname.startsWith("/file/")) return sendFile(req, res, ctx, url.pathname.slice("/file/".length), false);
@@ -97,6 +106,11 @@ async function handle(
   if (method === "GET" && url.pathname === "/op/reset") return operatorResetPage(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/reset") return operatorReset(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/uploads") return operatorUploadsPage(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/docs") return operatorDocsPage(req, res, ctx, url);
+  if (method === "POST" && url.pathname === "/op/docs/remove") return operatorDocsRemove(req, res, ctx);
+  if (method === "GET" && url.pathname.startsWith("/op/docs/file/")) {
+    return sendPersonal(req, res, ctx, url.pathname.slice("/op/docs/file/".length), true, url.searchParams.get("download") === "1");
+  }
   if (method === "GET" && url.pathname === "/op/manual") return operatorManualPage(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/manual") return operatorManualUpload(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/api") return operatorApiPage(req, res, ctx, url);
@@ -187,15 +201,50 @@ function logout(res: http.ServerResponse, cookie: string, to: string): void {
   redirect(res, to, { [cookie]: id }, 0);
 }
 
-async function userHome(
+function userPage(title: string, body: string, current: string): string {
+  return page(title, body, { nav: userNav(), tabs: userTabs(current), keepTitle: true });
+}
+
+async function userInstructions(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireUser(req);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>নির্দেশনা</h2>
+      <ul>
+        <li>ইম্পোর্টারের BIN ও পিন দিয়ে ঢুকুন।</li>
+        <li>এক পাতা করে বিল অব এন্ট্রি আপলোড করুন।</li>
+        <li>মাস বেছে ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্টের পিডিএফ নিন।</li>
+        <li>আপলোড কনফার্মের পর খাতায় যায়।</li>
+        <li>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</li>
+      </ul>
+    </section>`;
+  sendHtml(res, 200, userPage("Book of Mushak", body, "/app"));
+}
+
+async function userUploadPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireUser(req);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>বিল অব এন্ট্রি আপলোড</h2>
+      <p class="note">এক পাতা করে দিন। কনফার্মের পর খাতায় যাবে।</p>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        <input type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+        <button>আপলোড</button>
+      </form>
+    </section>`;
+  sendHtml(res, 200, userPage("Book of Mushak", body, "/app/upload"));
+}
+
+async function userSubmissions(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   ctx: { kv: Kv },
   url: URL,
 ): Promise<void> {
   const bin = requireUser(req);
-  const uploads = await listUploads(ctx.kv, bin);
-  const rows = uploads
+  const rows = (await listUploads(ctx.kv, bin))
     .map(
       (row) =>
         `<tr><td>${esc(row.createdAt.slice(0, 16).replace("T", " "))}</td><td>${esc(row.fileName)}</td><td>${esc(statusText(row.status))}</td></tr>`,
@@ -204,34 +253,69 @@ async function userHome(
   const body = `
     ${note(url)}
     <section class="card">
-      <h2>নির্দেশনা</h2>
-      <p>ইম্পোর্টারের BIN ও পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
-      <p>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</p>
-    </section>
-    <section class="card">
-      <h2>আপলোড</h2>
-      <p class="note">এক পাতা করে দিন। কনফার্মের পর খাতায় যাবে।</p>
-      <form method="post" action="/upload" enctype="multipart/form-data">
-        <input type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" required>
-        <button>আপলোড</button>
-      </form>
-    </section>
-    <section class="card">
-      <h2>আপনার পাতা</h2>
+      <h2>আপনার সাবমিশন</h2>
+      <p class="note">এখানে আপনার পাঠানো বিল অব এন্ট্রির তালিকা। সময়, ফাইলের নাম ও অবস্থা। এটা খাতা নয়।</p>
       <table><thead><tr><th>সময়</th><th>ফাইল</th><th>অবস্থা</th></tr></thead><tbody>${rows || `<tr><td colspan="3">এখনো কোনো আপলোড নেই।</td></tr>`}</tbody></table>
-    </section>
-    <section class="card">
-      <h2>৬.১ / ৬.২ / ৬.৩ / রিপোর্ট</h2>
-      <form method="get" action="/download" class="row">
-        <label>মাস <input type="month" name="month" required></label>
-        <button name="form" value="6.1">৬.১</button>
-        <button name="form" value="6.2">৬.২</button>
-        <button name="form" value="6.3">৬.৩</button>
-        <button name="form" value="report">রিপোর্ট</button>
-      </form>
-      <p class="note">মাস বেছে পিডিএফ ডাউনলোড হবে।</p>
     </section>`;
-  sendHtml(res, 200, page("মূসক বই", body, { nav: userNav() }));
+  sendHtml(res, 200, userPage("Book of Mushak", body, "/app/submissions"));
+}
+
+async function userReportPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireUser(req);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>রিপোর্ট</h2>
+      <form method="get" action="/download" class="report">
+        <label>মাস <input type="month" name="month" required></label>
+        <div class="row">
+          <button name="form" value="6.1">৬.১</button>
+          <button name="form" value="6.2">৬.২</button>
+          <button name="form" value="6.3">৬.৩</button>
+          <button name="form" value="report">মাসিক রিপোর্ট</button>
+        </div>
+      </form>
+      <p class="note">আগে মাস বেছে নিন। তারপর ৬.১, ৬.২, ৬.৩ বা মাসিক রিপোর্টের পিডিএফ নামবে।</p>
+    </section>`;
+  sendHtml(res, 200, userPage("Book of Mushak", body, "/app/report"));
+}
+
+async function userDocsPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  const bin = requireUser(req);
+  const rows = (await listPersonal(ctx.kv, bin))
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.createdAt.slice(0, 16).replace("T", " "))}</td><td>${esc(row.fileName)}</td><td>পাঠানো হয়েছে</td></tr>`,
+    )
+    .join("");
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>পারসোনাল ডকুমেন্ট</h2>
+      <p class="note">যেকোনো ফাইল এখান থেকে পাঠান। Admin দেখে ডাউনলোড বা ডিলিট করবেন। এক ফাইলে সর্বোচ্চ ৮ মেগাবাইট।</p>
+      <form method="post" action="/app/docs" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button>পাঠান</button>
+      </form>
+      <table><thead><tr><th>সময়</th><th>ফাইল</th><th>অবস্থা</th></tr></thead><tbody>${rows || `<tr><td colspan="3">এখনো কোনো ডকুমেন্ট পাঠানো হয়নি।</td></tr>`}</tbody></table>
+    </section>`;
+  sendHtml(res, 200, userPage("Book of Mushak", body, "/app/docs"));
+}
+
+async function userDocsSave(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { dataDir: string; kv: Kv },
+): Promise<void> {
+  const bin = requireUser(req);
+  const file = await readSingleFile(req);
+  await savePersonal(ctx.kv, ctx.dataDir, { bin, fileName: file.filename, data: file.data });
+  redirect(res, "/app/docs?msg=" + encodeURIComponent("ডকুমেন্ট পাঠানো হয়েছে।"));
 }
 
 async function userUpload(req: http.IncomingMessage, res: http.ServerResponse, ctx: { dataDir: string; kv: Kv }): Promise<void> {
@@ -240,7 +324,7 @@ async function userUpload(req: http.IncomingMessage, res: http.ServerResponse, c
   const type = sniff(file.data);
   if (!type) throw new HttpError("শুধু JPG, PNG, WEBP বা এক পাতার PDF দেওয়া যাবে।");
   await saveUpload(ctx.kv, ctx.dataDir, { bin, fileName: safeName(file.filename), contentType: type, data: file.data });
-  redirect(res, "/app?msg=" + encodeURIComponent("আপলোড হয়েছে। কনফার্মের পর খাতায় যাবে।"));
+  redirect(res, "/app/submissions?msg=" + encodeURIComponent("আপলোড হয়েছে। কনফার্মের পর খাতায় যাবে।"));
 }
 
 async function userDownload(
@@ -379,6 +463,70 @@ async function operatorUploadsPage(
       <table><thead><tr><th>BIN</th><th>তারিখ</th><th>পাতা</th><th></th></tr></thead><tbody>${uploadRows || `<tr><td colspan="4">অপেক্ষমাণ আপলোড নেই।</td></tr>`}</tbody></table>
     </section>`;
   sendHtml(res, 200, page("আপলোড", body, { tabs: opTabs("/op/uploads") }));
+}
+
+async function operatorDocsPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const names = new Map((await customerRows(ctx.kv)).map((row) => [row.bin, row.name]));
+  const rows = (await listPersonal(ctx.kv))
+    .map((row) => {
+      const view = personalInline(row.contentType)
+        ? `<a href="/op/docs/file/${esc(row.id)}" target="_blank">দেখুন</a>`
+        : `<a href="/op/docs/file/${esc(row.id)}?download=1">দেখুন</a>`;
+      return `<tr><td>${esc(row.createdAt.slice(0, 16).replace("T", " "))}</td><td>${esc(names.get(row.bin) ?? row.bin)}</td><td>${esc(row.bin)}</td><td>${esc(row.fileName)}</td><td>${view} <a href="/op/docs/file/${esc(row.id)}?download=1">ডাউনলোড</a>
+        <form method="post" action="/op/docs/remove"><input type="hidden" name="id" value="${esc(row.id)}"><button class="danger">ডিলিট</button></form>
+      </td></tr>`;
+    })
+    .join("");
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>পারসোনাল ডকুমেন্ট</h2>
+      <p class="note">কাস্টমার যে ফাইল পাঠিয়েছেন। দেখে ডাউনলোড বা ডিলিট করুন।</p>
+      <table><thead><tr><th>সময়</th><th>কাস্টমার</th><th>BIN</th><th>ফাইল</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="5">এখনো কোনো ডকুমেন্ট আসেনি।</td></tr>`}</tbody></table>
+    </section>`;
+  sendHtml(res, 200, page("পারসোনাল ডকুমেন্ট", body, { tabs: opTabs("/op/docs") }));
+}
+
+async function operatorDocsRemove(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { dataDir: string; kv: Kv },
+): Promise<void> {
+  requireOperator(req);
+  const form = await readForm(req);
+  const doc = await removePersonal(ctx.kv, ctx.dataDir, form.get("id") ?? "");
+  redirect(res, "/op/docs?msg=" + encodeURIComponent(`${doc.fileName} মুছে ফেলা হয়েছে।`));
+}
+
+async function sendPersonal(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { dataDir: string; kv: Kv },
+  id: string,
+  operator: boolean,
+  download: boolean,
+): Promise<void> {
+  const doc = (await listPersonal(ctx.kv)).find((row) => row.id === id);
+  if (!doc) throw new HttpError("ফাইল নেই।", 404);
+  if (operator) requireOperator(req);
+  else if (requireUser(req) !== doc.bin) throw new HttpError("এই ফাইল আপনার নয়।", 403);
+  const data = await fs.readFile(personalFile(ctx.dataDir, id));
+  const inline = personalInline(doc.contentType) && !download;
+  const type = inline ? doc.contentType : "application/octet-stream";
+  const star = encodeURIComponent(doc.fileName);
+  res.writeHead(200, {
+    "content-type": type,
+    "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${star}`,
+    "x-content-type-options": "nosniff",
+    "cache-control": "private, no-store",
+  });
+  res.end(data);
 }
 
 async function operatorManualPage(
@@ -840,13 +988,19 @@ function operatorLoginPage(msg: string | null, configured: boolean): string {
 }
 
 function userNav(): string {
-  return `<a href="/app">হোম</a> <form method="post" action="/logout"><button>বের হন</button></form>`;
+  return `<form method="post" action="/logout"><button translate="no">Sign Out</button></form>`;
+}
+
+function userTabs(current: string): string {
+  const item = (href: string, label: string) =>
+    `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
+  return `<nav class="tabs">${item("/app", "নির্দেশনা")}${item("/app/upload", "বিল অব এন্ট্রি আপলোড")}${item("/app/submissions", "আপনার সাবমিশন")}${item("/app/docs", "পারসোনাল ডকুমেন্ট")}${item("/app/report", "রিপোর্ট")}</nav>`;
 }
 
 function opTabs(current: string): string {
   const item = (href: string, label: string) =>
     `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
-  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/buyers", "৬.৩ ক্রেতা")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}${item("/op/profile", "প্রোফাইল")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/buyers", "৬.৩ ক্রেতা")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/docs", "পারসোনাল ডকুমেন্ট")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}${item("/op/profile", "প্রোফাইল")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
 }
 
 type NamedCustomer = { bin: string; name: string };
@@ -889,11 +1043,12 @@ function note(url: URL): string {
   return msg ? `<p class="note">${esc(msg)}</p>` : "";
 }
 
-function page(title: string, body: string, opts: { nav?: string; slogan?: string; tabs?: string } = {}): string {
+function page(title: string, body: string, opts: { nav?: string; slogan?: string; tabs?: string; keepTitle?: boolean } = {}): string {
   const nav = opts.nav ?? "";
+  const heading = opts.keepTitle ? `<h1 translate="no">${esc(title)}</h1>` : `<h1>${esc(title)}</h1>`;
   const head = opts.slogan
     ? `<header class="hero"><h1 class="slogan">${esc(opts.slogan)}</h1></header>`
-    : `<header class="bar"><div><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p><h1>${esc(title)}</h1></div>${nav ? `<nav>${nav}</nav>` : ""}</header>`;
+    : `<header class="bar"><div><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p>${heading}</div>${nav ? `<nav>${nav}</nav>` : ""}</header>`;
   return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="description" content="osbdsyl.online — অনলাইনে ভ্যাট দাখিল ও খাতা সংরক্ষণ"><title>${esc(title)} — osbdsyl.online</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -927,7 +1082,8 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       table{border-collapse:collapse;width:100%;background:#fff}
       th,td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
       th{background:#f4faf6;color:var(--green)}
-      form.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+      form.row,div.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+      form.report{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
       header form{display:inline}
       label{display:flex;flex-direction:column;gap:6px;font-weight:600}
       .hint{font-weight:400;color:var(--muted);font-size:.84rem}
@@ -937,6 +1093,7 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       .card{background:#fff;border:1px solid #e4e4e4;padding:0 0 16px;margin:16px 0}
       .card h2{margin:0 0 14px;padding:12px 16px;background:var(--green-mid);color:#fff;font-size:1.02rem;font-weight:600}
       .card p,.card form,.card ul{padding:0 16px}
+      .card ul{padding-left:36px}
       .card table{width:calc(100% - 32px);margin:0 16px}
       .login-card{max-width:420px;margin:28px auto}
       form.stack{display:flex;flex-direction:column;gap:14px}
@@ -944,7 +1101,7 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       .note{color:var(--muted)}
       footer{background:var(--green);color:#fff;font-size:.85rem;padding:14px 22px}
       footer p{max-width:960px;margin:0 auto}
-      @media (max-width:640px){header.bar{align-items:flex-start;flex-direction:column}}
+      @media (max-width:640px){header.bar{align-items:center;gap:12px} header.bar h1{font-size:1.05rem}}
     </style></head><body>
     <div class="top">${head}</div>
     ${opts.tabs ?? ""}

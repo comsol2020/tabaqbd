@@ -342,9 +342,17 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     const uploaded = await fetch(`${base}/upload`, { method: "POST", headers: { cookie: userCookie }, body: form, redirect: "manual" });
     assert.equal(uploaded.status, 303);
     const appHtml = await (await fetch(`${base}/app`, { headers: { cookie: userCookie } })).text();
-    assert.match(appHtml, /অপেক্ষমাণ/);
+    assert.match(appHtml, /Book of Mushak/);
+    assert.match(appHtml, /Sign Out/);
+    assert.match(appHtml, /পারসোনাল ডকুমেন্ট/);
+    assert.match(appHtml, /আপনার সাবমিশন/);
     assert.match(appHtml, /পোর্টালে কিছু পাঠায় না/);
     assert.match(appHtml, /এক পাতা করে বিল অব এন্ট্রি আপলোড করুন/);
+    const submissions = await (await fetch(`${base}/app/submissions`, { headers: { cookie: userCookie } })).text();
+    assert.match(submissions, /অপেক্ষমাণ/);
+    const reportPage = await (await fetch(`${base}/app/report`, { headers: { cookie: userCookie } })).text();
+    assert.match(reportPage, /মাসিক রিপোর্ট/);
+    assert.ok(reportPage.indexOf('type="month"') < reportPage.indexOf("৬.১"));
 
     const disk = openDisk(dir);
     const pending = await listUploads(disk);
@@ -494,6 +502,61 @@ test("admin changes the operator password from the profile page", async () => {
     assert.equal(new URL(fresh.headers.get("location") ?? "/", base).pathname, "/op");
     const profile = await (await fetch(`${base}/op/profile`, { headers: { cookie: cookieOf(fresh) } })).text();
     assert.match(profile, /পাসওয়ার্ড বদলান/);
+  } finally {
+    await started.close();
+  }
+});
+
+test("customer sends a personal document and the admin can download or delete it", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "vatdocs-"));
+  const started = await startServer({ port: 0, host: "127.0.0.1", dataDir: dir, operatorPin: "2468" });
+  const base = `http://127.0.0.1:${started.port}`;
+  try {
+    const pin = await fetch(`${base}/op/login`, {
+      method: "POST",
+      body: new URLSearchParams({ pin: "2468" }),
+      redirect: "manual",
+    });
+    const opCookie = cookieOf(pin);
+    await fetch(`${base}/op/pin`, {
+      method: "POST",
+      headers: { cookie: opCookie },
+      body: new URLSearchParams({ name: "Kutub", bin: "0003116570701", pin: "12345678901", pin2: "12345678901" }),
+      redirect: "manual",
+    });
+    const user = await fetch(`${base}/login`, {
+      method: "POST",
+      body: new URLSearchParams({ bin: "0003116570701", pin: "12345678901" }),
+      redirect: "manual",
+    });
+    const userCookie = cookieOf(user);
+    const form = new FormData();
+    form.set("file", new Blob([Buffer.from("trade licence")]), "licence.txt");
+    const sent = await fetch(`${base}/app/docs`, { method: "POST", headers: { cookie: userCookie }, body: form, redirect: "manual" });
+    assert.equal(sent.status, 303);
+    const mine = await (await fetch(`${base}/app/docs`, { headers: { cookie: userCookie } })).text();
+    assert.match(mine, /licence\.txt/);
+    assert.match(mine, /পাঠানো হয়েছে/);
+    const inbox = await (await fetch(`${base}/op/docs`, { headers: { cookie: opCookie } })).text();
+    assert.match(inbox, /licence\.txt/);
+    assert.match(inbox, /Kutub/);
+    assert.match(inbox, /ডাউনলোড/);
+    assert.match(inbox, /ডিলিট/);
+    const id = /\/op\/docs\/file\/([a-f0-9]{32})/.exec(inbox)?.[1];
+    assert.ok(id);
+    const file = await fetch(`${base}/op/docs/file/${id}?download=1`, { headers: { cookie: opCookie } });
+    assert.equal(file.status, 200);
+    assert.match(file.headers.get("content-disposition") ?? "", /attachment/);
+    assert.equal(await file.text(), "trade licence");
+    const removed = await fetch(`${base}/op/docs/remove`, {
+      method: "POST",
+      headers: { cookie: opCookie },
+      body: new URLSearchParams({ id: id! }),
+      redirect: "manual",
+    });
+    assert.equal(removed.status, 303);
+    assert.doesNotMatch(await (await fetch(`${base}/op/docs`, { headers: { cookie: opCookie } })).text(), /licence\.txt/);
+    assert.equal((await fetch(`${base}/op/docs/file/${id}`, { headers: { cookie: opCookie } })).status, 404);
   } finally {
     await started.close();
   }
