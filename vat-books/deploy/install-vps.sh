@@ -24,6 +24,7 @@ if [[ ! -f /etc/os-release ]] || ! grep -qiE 'ubuntu|debian' /etc/os-release; th
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+rm -f /etc/apt/sources.list.d/caddy-stable.list
 apt-get update
 apt-get install -y --no-install-recommends \
   ca-certificates curl gnupg rsync ufw \
@@ -52,13 +53,14 @@ fi
 CHROME="$(command -v google-chrome || command -v google-chrome-stable)"
 
 if ! command -v caddy >/dev/null 2>&1; then
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-    | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
-  apt-get update
-  apt-get install -y caddy
+  curl -fsSL -o /usr/local/bin/caddy "https://caddyserver.com/api/download?os=linux&arch=amd64"
+  chmod 755 /usr/local/bin/caddy
 fi
+if ! id caddy >/dev/null 2>&1; then
+  useradd --system --home-dir /var/lib/caddy --create-home --shell /usr/sbin/nologin caddy
+fi
+install -d -o caddy -g caddy -m 755 /etc/caddy /var/lib/caddy
+install -m 644 "$SRC/deploy/caddy.service" /etc/systemd/system/caddy.service
 
 if ! id osbdsyl >/dev/null 2>&1; then
   useradd --system --home-dir /opt/osbdsyl --shell /usr/sbin/nologin osbdsyl
