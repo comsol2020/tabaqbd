@@ -1,6 +1,7 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
+import { mirrorImporter } from "../lib/mirror.js";
 import { publishBooks } from "../lib/publish.js";
 import { confirmSales } from "../lib/sales.js";
 import { requireImporter, saveImporter } from "../lib/store.js";
@@ -26,7 +27,8 @@ export default defineTool({
     const result = confirmSales(doc, req, requestId);
     if (result.duplicate) return { bin, ...result };
     await saveImporter(ctx.host.kv, doc);
+    const mirrored = await mirrorImporter(doc);
     const published = await publishBooks(ctx.artifacts, doc, ["6.1", "6.2", "6.2.1", "6.3"]);
-    return { bin, ...result, published };
+    return mirrored.ok ? { bin, ...result, published } : { bin, ...result, published, websiteMirror: mirrored.warning };
   },
 });

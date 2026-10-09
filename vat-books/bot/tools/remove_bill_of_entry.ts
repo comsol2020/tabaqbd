@@ -2,6 +2,7 @@ import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
 import { removeBoe } from "../lib/boe.js";
+import { mirrorImporter } from "../lib/mirror.js";
 import { publishBooks } from "../lib/publish.js";
 import { requireImporter, saveImporter } from "../lib/store.js";
 import { normalizeBin } from "../lib/vat.js";
@@ -24,7 +25,10 @@ export default defineTool({
     const doc = await requireImporter(ctx.host.kv, normalizeBin(bin));
     const { removedLines } = removeBoe(doc, number, date);
     await saveImporter(ctx.host.kv, doc);
+    const mirrored = await mirrorImporter(doc);
     const published = await publishBooks(ctx.artifacts, doc, ["6.1", "6.2.1"]);
-    return { removed: true, bin: doc.bin, removedLines, published };
+    return mirrored.ok
+      ? { removed: true, bin: doc.bin, removedLines, published }
+      : { removed: true, bin: doc.bin, removedLines, published, websiteMirror: mirrored.warning };
   },
 });

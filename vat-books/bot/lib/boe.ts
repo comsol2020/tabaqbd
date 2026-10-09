@@ -1,13 +1,16 @@
 import { requireHsName } from "./catalog.js";
+import { extFromDescription } from "./extkg.js";
 import type { HsCatalog } from "./store.js";
 import type { CoefficientRow, ImporterDoc, PurchaseLine } from "./types.js";
-import { declaredPrice, dutyTotal, impliedImportVatRate, isIsoDate, vatRateLooksOff } from "./vat.js";
+import { declaredPrice, dutyTotal, impliedImportVatRate, isIsoDate, round2, vatRateLooksOff } from "./vat.js";
 
 export type BoeItemInput = {
   hsCode: string;
   productName?: string;
   unit: string;
   quantity: number;
+  /** Printed description of goods. `EXT= … KGS` in this text is added to box 38. */
+  goodsDescription?: string;
   assessableValue: number;
   cd: number;
   rd: number;
@@ -61,7 +64,15 @@ export function applyBoe(doc: ImporterDoc, boe: BoeInput, catalog: HsCatalog): A
     }
     const named = requireHsName(nextCatalog, it.hsCode, it.productName);
     nextCatalog = named.catalog;
-    const price = declaredPrice(it, pct);
+    const ext = extFromDescription(it.goodsDescription ?? "");
+    const quantity = ext.kg > 0 ? round2(it.quantity + ext.kg) : it.quantity;
+    if (!(quantity > 0)) throw new Error(`Item ${i + 1}: quantity must stay positive.`);
+    if (ext.kg > 0) {
+      warnings.push(
+        `Item ${i + 1}: EXT ${ext.kg} kg added to box 38 (${it.quantity} kg). Stock quantity is ${quantity} kg. No money figure was changed.`,
+      );
+    }
+    const price = declaredPrice({ ...it, quantity }, pct);
     const prev = doc.coefficients[named.key];
     let declaredUnitPrice = price.declaredUnitPrice;
     if (!prev) {
@@ -92,7 +103,9 @@ export function applyBoe(doc: ImporterDoc, boe: BoeInput, catalog: HsCatalog): A
       description: named.name,
       hsCode: named.hsCode,
       unit: it.unit,
-      quantity: it.quantity,
+      quantity,
+      box38Kg: it.quantity,
+      extKg: ext.kg,
       assessableValue: it.assessableValue,
       cd: it.cd,
       rd: it.rd,

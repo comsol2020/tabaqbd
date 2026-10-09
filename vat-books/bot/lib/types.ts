@@ -30,6 +30,10 @@ export type PurchaseLine = {
   costValue: number;
   unitCost: number;
   declaredUnitPrice: number;
+  /** Box 38 net weight, before any EXT kilograms. */
+  box38Kg?: number;
+  /** Kilograms added from `EXT= … KGS` in the goods description. */
+  extKg?: number;
 };
 
 export type Invoice = {

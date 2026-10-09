@@ -45,3 +45,9 @@ Run the CLI under Node, never Bun.
 - Skills: `node_modules/@cursor/bdk/skills/` (`create-agent`, `deploy`, `evals`, `hillclimb`, `debug`)
 - Docs: `npx @cursor/bdk docs`
 - LLM docs index: `node_modules/@cursor/bdk/dist/docs/llms.txt`
+
+## Added after the approved books
+
+EXT kilograms, the month reset, the party list before a report, the glance
+table, the importer dashboard, and the API registry are later parts. Do not
+fold them back into the earlier rules by rewriting those rules.

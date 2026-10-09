@@ -18,9 +18,11 @@ Layout of the common form ("BILL OF ENTRY / EXPORT"), phone photos included:
   check box 5 (item count) matches. Assessable value is box 46.
 - **Quantity and unit (standing rule)**: stock quantity is **box 38 net
   weight**, unit **KG**. Do not use box 41 Quantity/Units (it may be blank, or
-  hold a different figure such as 240). Do not use package count. Do not add
-  an `EXT= … KGS` figure from the description until the operator confirms that
-  rule. Do not ask which quantity to use.
+  hold a different figure such as 240). Do not use package count. If the
+  description of goods contains `EXT= … KGS`, pass that text as
+  `goodsDescription` and pass box 38 alone as `quantity`. The tool adds only
+  those EXT kilograms to box 38. Do not add or subtract any other figure,
+  and do not change any money figure. Do not ask which quantity to use.
 - **Product name (standing rule)**: look up every box-33 HS code with
   `lookup_hs` (shared across all importers). If the name is already stored,
   use it and do not ask. If it is unknown, ask the operator to type the name

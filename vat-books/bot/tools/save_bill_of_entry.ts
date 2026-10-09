@@ -2,8 +2,12 @@ import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
 import { applyBoe } from "../lib/boe.js";
+import { diskDir, openDisk } from "../lib/disk.js";
+import { glanceRows } from "../lib/glance.js";
+import { mirrorImporter } from "../lib/mirror.js";
 import { publishBooks } from "../lib/publish.js";
 import { createImporter, loadHsCatalog, loadImporter, saveHsCatalog, saveImporter } from "../lib/store.js";
+import { assertUploadForSave, markUploadPosted } from "../lib/uploads.js";
 import { isIsoDate, normalizeBin } from "../lib/vat.js";
 
 const money = z.number().min(0);
@@ -12,7 +16,12 @@ export default defineTool({
   description: prompt`
     Save one bill of entry that you have already read from an uploaded scan,
     and add its lines to the importer's Mushak 6.1 purchase book. Quantity is
-    the net weight from box 38, in KG. Product name comes from the shared HS
+    the net weight from box 38, in KG, and nothing else. If the goods description
+    contains EXT= … KGS, pass that text as goodsDescription and pass box 38 alone
+    as quantity; only those kilograms are added, and no money figure changes.
+    The result includes glance (bill number, date, kg) for a quick check against
+    the scan. Pass uploadId only for a website upload that is already confirmed.
+    Product name comes from the shared HS
     catalogue (lookup_hs); pass productName only for an HS code the catalogue
     does not yet have — the name the operator typed, not the scan's description
     text. Value addition % is once per BIN: pass valueAdditionPct only if this
@@ -53,7 +62,11 @@ export default defineTool({
               .optional()
               .describe("Only if lookup_hs says this HS is unknown: the name the operator typed"),
             unit: z.string().min(1).describe("Always KG from box 38"),
-            quantity: z.number().positive().describe("Box 38 net weight; do not use box 41"),
+            quantity: z.number().positive().describe("Box 38 net weight only. Do not add EXT yourself and do not use box 41"),
+            goodsDescription: z
+              .string()
+              .optional()
+              .describe("Description of goods as printed. EXT= … KGS in this text is added to box 38"),
             assessableValue: money,
             cd: money.default(0),
             rd: money.default(0),
@@ -65,9 +78,13 @@ export default defineTool({
         )
         .min(1),
     }),
+    uploadId: z
+      .string()
+      .optional()
+      .describe("Website upload id. The upload must already be confirmed or it is refused"),
   }),
   dryRunResult: () => ({ saved: false }),
-  async execute({ importer, boe }, ctx) {
+  async execute({ importer, boe, uploadId }, ctx) {
     const bin = normalizeBin(importer.bin);
     if (!isIsoDate(boe.date)) throw new Error(`boe.date must be YYYY-MM-DD, got "${boe.date}"`);
     const kv = ctx.host.kv;
@@ -81,7 +98,11 @@ export default defineTool({
         `Name on this document ("${importer.name}") differs from the name on file ("${doc.name}") for BIN ${bin}. Filed under the BIN.`,
       );
     }
-    if (doc.purchases.some((p) => p.boeKey === boeKey)) {
+    const duplicate = doc.purchases.some((p) => p.boeKey === boeKey);
+    const website = openDisk();
+    if (uploadId) await assertUploadForSave(website, uploadId, bin, duplicate);
+    if (duplicate) {
+      if (uploadId) await markUploadPosted(website, uploadId, boeKey);
       return { saved: false, duplicate: true, bin, boeKey, warnings };
     }
     const catalog = await loadHsCatalog(kv);
@@ -89,6 +110,9 @@ export default defineTool({
     warnings.push(...result.warnings);
     await saveHsCatalog(kv, result.catalog);
     await saveImporter(kv, doc);
+    const mirrored = await mirrorImporter(doc, diskDir());
+    if (!mirrored.ok) warnings.push(mirrored.warning);
+    if (uploadId) await markUploadPosted(website, uploadId, boeKey);
     const forms = result.publish43 ? (["4.3", "6.1", "6.2.1"] as const) : (["6.1", "6.2.1"] as const);
     const published = await publishBooks(ctx.artifacts, doc, [...forms]);
     return {
@@ -107,6 +131,10 @@ export default defineTool({
         unitCost: l.unitCost,
         declaredUnitPrice: l.declaredUnitPrice,
       })),
+      glance: {
+        columns: ["বিল নং", "তারিখ", "কেজি"],
+        rows: glanceRows(result.lines),
+      },
       bin,
       importerName: doc.name,
       lineIds: result.lines.map((l) => l.lineId),

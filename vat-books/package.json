@@ -6,7 +6,8 @@
   "scripts": {
     "check": "tsc --noEmit",
     "dev": "bdk dev",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "dashboard": "node --import tsx dashboard/server.ts"
   },
   "dependencies": {
     "@cursor/bdk": "^0.2.21",
