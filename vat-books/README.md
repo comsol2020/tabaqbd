@@ -56,6 +56,10 @@ OPERATOR_PIN=আপনারপিন npm run dashboard
 
 পরে দরকার হলে API-র নাম, https ঠিকানা ও কী-এর এনভির নাম যোগ করা যাবে। কী নিজে লিখবেন না। যোগ করলেই সেই API কল হয় না।
 
+### ১১. একসাথে থাকা পাতা
+
+অনেক পাতার পিডিএফ, জিপ, বা একসাথে থাকা ফাইল `vat-pages` এজেন্টে দিন, BIN সহ। সে এক পাতা করে এই ইনবক্সে রাখে। পাতা কনফার্মের পর এই এজেন্ট সেগুলো পড়ে ৬.১-এর বাকি কাজ করে। এই এজেন্টের আগের নিয়ম একই থাকে।
+
 ---
 
 Developer: `npm test` then `npx bdk serve --dir . --mode single --dev`. Playground: `/playground`. Dashboard: `OPERATOR_PIN=... npm run dashboard` (port 8080, same `VAT_DATA_DIR` as the agent so uploads and books match). Node 22, persistent `--state-root`. Not for Cloudflare Workers. PDF download uses headless Chrome.
