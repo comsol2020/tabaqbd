@@ -96,6 +96,7 @@ async function handle(
   if (method === "POST" && url.pathname === "/op/reset") return operatorReset(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/uploads") return operatorUploadsPage(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/api") return operatorApiPage(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/monthly") return operatorMonthlyPage(req, res, url);
   if (method === "GET" && url.pathname === "/op/parties") return operatorParties(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/report") return operatorReport(req, res, ctx, url, false);
   if (method === "GET" && url.pathname === "/op/report.pdf") return operatorReport(req, res, ctx, url, true);
@@ -419,6 +420,20 @@ async function operatorReset(req: http.IncomingMessage, res: http.ServerResponse
   redirect(res, "/op/reset?msg=" + encodeURIComponent(`${bin} এর ${month} মাস মুছে ফেলা হয়েছে।`));
 }
 
+async function operatorMonthlyPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireOperator(req);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>মাসিক রিপোর্ট</h2>
+      <form method="get" action="/op/parties" class="row">
+        <label>মাস <input type="month" name="month" required></label>
+        <button>Report</button>
+      </form>
+    </section>`;
+  sendHtml(res, 200, page("Report", body, { tabs: opTabs("/op/monthly") }));
+}
+
 async function operatorParties(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -452,7 +467,7 @@ async function operatorParties(
       <table><thead><tr><th>পার্টি</th><th>BIN</th><th>বিল অব এন্ট্রি</th><th>চালান</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5">এই মাসে কোনো পার্টির লেনদেন নেই।</td></tr>`}</tbody></table>
     </section>`;
-  sendHtml(res, 200, page("মাসিক রিপোর্ট", body, { tabs: opTabs("/op/parties") }));
+  sendHtml(res, 200, page("Report", body, { tabs: opTabs("/op/monthly") }));
 }
 
 async function operatorReport(
@@ -617,7 +632,7 @@ function userNav(): string {
 function opTabs(current: string): string {
   const item = (href: string, label: string) =>
     `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
-  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
 }
 
 type NamedCustomer = { bin: string; name: string };

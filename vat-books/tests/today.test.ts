@@ -365,6 +365,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.match(customer, /name="form" value="6.1"/);
     assert.match(customer, /name="form" value="6.3"/);
     assert.match(customer, /type="month"/);
+    assert.match(await (await fetch(`${base}/op/monthly`, { headers: { cookie: opCookie } })).text(), /action="\/op\/parties"/);
     const parties = await (await fetch(`${base}/op/parties?month=2026-01`, { headers: { cookie: opCookie } })).text();
     assert.match(parties, /রিপোর্ট জেনারেট/);
     assert.match(parties, /Aritree/);
