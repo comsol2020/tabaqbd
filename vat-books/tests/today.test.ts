@@ -274,6 +274,13 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
   const started = await startServer({ port: 0, host: "127.0.0.1", dataDir: dir, operatorPin: "2468" });
   const base = `http://127.0.0.1:${started.port}`;
   try {
+    const home = await (await fetch(`${base}/`)).text();
+    assert.match(home, /osbdsyl\.online/);
+    assert.match(home, /action="\/login"/);
+    const health = await fetch(`${base}/health`);
+    assert.equal(health.status, 200);
+    assert.equal(await health.text(), "ok");
+
     const op = await fetch(`${base}/op/login`, {
       method: "POST",
       body: new URLSearchParams({ pin: "2468" }),

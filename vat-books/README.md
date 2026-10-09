@@ -56,6 +56,16 @@ OPERATOR_PIN=আপনারপিন npm run dashboard
 
 পরে দরকার হলে API-র নাম, https ঠিকানা ও কী-এর এনভির নাম যোগ করা যাবে। কী নিজে লিখবেন না। যোগ করলেই সেই API কল হয় না।
 
+### ১১. osbdsyl.online সার্ভারে
+
+ওয়েবসাইট এই ড্যাশবোর্ড। Ubuntu VPS-এ, ডোমেইনের A রেকর্ড (`osbdsyl.online` ও `www`) সার্ভারের IP-তে দেওয়ার পর:
+
+```bash
+sudo OPERATOR_PIN='আপনারপিন' bash deploy/install-vps.sh
+```
+
+স্ক্রিপ্ট Node 22, Chrome, বাংলা ফন্ট, Caddy (HTTPS) ও systemd সার্ভিস `osbdsyl` বসায়। অ্যাপ শুধু `127.0.0.1:8080`-এ শোনে; বাইরে থেকে `https://osbdsyl.online`। আবার চালালে কোড আপডেট হয়, পিন ও খাতার ডাটা মুছে না।
+
 ---
 
 Developer: `npm test` then `npx bdk serve --dir . --mode single --dev`. Playground: `/playground`. Dashboard: `OPERATOR_PIN=... npm run dashboard` (port 8080, same `VAT_DATA_DIR` as the agent so uploads and books match). Node 22, persistent `--state-root`. Not for Cloudflare Workers. PDF download uses headless Chrome.

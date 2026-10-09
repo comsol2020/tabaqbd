@@ -1,0 +1,18 @@
+[Unit]
+Description=osbdsyl.online VAT books dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=osbdsyl
+Group=osbdsyl
+WorkingDirectory=/opt/osbdsyl/vat-books
+EnvironmentFile=/etc/osbdsyl.env
+ExecStart=/usr/bin/env node --import tsx dashboard/server.ts
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

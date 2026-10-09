@@ -52,7 +52,7 @@ export function startServer(opts: ServerOptions = {}): Promise<{ port: number; c
       sendHtml(res, status, page("ত্রুটি", `<p>${esc(message)}</p>`));
     });
   });
-  const host = opts.host ?? "0.0.0.0";
+  const host = opts.host ?? process.env.HOST ?? "0.0.0.0";
   const port = opts.port ?? Number(process.env.PORT ?? 8080);
   return new Promise((resolve) => {
     server.listen(port, host, () => {
@@ -474,11 +474,14 @@ function loginPage(msg: string | null): string {
   return page(
     "প্রবেশ",
     `${msg ? `<p class="note">${esc(msg)}</p>` : ""}
-    <section class="card"><form method="post" action="/login" class="row">
-      <label>BIN <input name="bin" required autocomplete="username"></label>
-      <label>পিন <input name="pin" type="password" required inputmode="numeric" autocomplete="current-password"></label>
-      <button>প্রবেশ</button>
-    </form></section>`,
+    <section class="card">
+      <p>ইম্পোর্টারের BIN ও পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
+      <form method="post" action="/login" class="row">
+        <label>BIN <input name="bin" required autocomplete="username" inputmode="numeric"></label>
+        <label>পিন <input name="pin" type="password" required inputmode="numeric" autocomplete="current-password"></label>
+        <button>প্রবেশ</button>
+      </form>
+    </section>`,
   );
 }
 
@@ -508,12 +511,18 @@ function note(url: URL): string {
 }
 
 function page(title: string, body: string, opts: { nav?: string } = {}): string {
-  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>
+  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="description" content="osbdsyl.online — ইম্পোর্টারদের মূসক বই"><title>${esc(title)} — osbdsyl.online</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-      body{font-family:"Noto Sans Bengali",sans-serif;margin:0;background:#f4f1ea;color:#1c1915}
-      header,main{max-width:920px;margin:0 auto;padding:16px}
-      header{display:flex;justify-content:space-between;align-items:center}
-      h1{font-size:1.35rem;margin:0}
+      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;background:#f4f1ea;color:#1c1915;min-height:100vh}
+      header,main,footer{max-width:920px;margin:0 auto;padding:16px 20px}
+      header{display:flex;justify-content:space-between;align-items:center;gap:16px}
+      .brand{margin:0;font-weight:700}
+      .brand a{color:#1f4b3a;text-decoration:none}
+      h1{font-size:1.35rem;margin:2px 0 0;font-weight:600}
+      nav{display:flex;gap:12px;align-items:center}
       a{color:#1f4b3a}
       button,.btn{background:#1f4b3a;color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
       button.danger{background:#8c2f2f}
@@ -523,12 +532,16 @@ function page(title: string, body: string, opts: { nav?: string } = {}): string 
       form.row,header form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
       header form{display:inline}
       label{display:flex;flex-direction:column;gap:4px;font-size:.92rem}
-      input{font:inherit;padding:8px;border:1px solid #ccc;border-radius:6px}
+      input{font:inherit;padding:8px;border:1px solid #ccc;border-radius:6px;background:#fff}
       .card{background:#fff;border-radius:10px;padding:16px;margin:16px 0}
       .note{color:#5c564c}
+      footer{color:#5c564c;font-size:.85rem}
+      @media (max-width:640px){header{align-items:flex-start;flex-direction:column}}
     </style></head><body>
-    <header><h1>${esc(title)}</h1><nav>${opts.nav ?? `<a href="/op">অপারেটর</a>`}</nav></header>
-    <main>${body}</main></body></html>`;
+    <header><div><p class="brand"><a href="/">osbdsyl.online</a></p><h1>${esc(title)}</h1></div><nav>${opts.nav ?? `<a href="/op">অপারেটর</a>`}</nav></header>
+    <main>${body}</main>
+    <footer><p>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</p></footer>
+    </body></html>`;
 }
 
 function requireUser(req: http.IncomingMessage): string {
@@ -682,9 +695,13 @@ function sameText(a: string, b: string): boolean {
 }
 
 function clientIp(req: http.IncomingMessage): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  return (raw?.split(",")[0] ?? req.socket.remoteAddress ?? "").trim();
+  if (process.env.TRUST_PROXY === "1") {
+    const forwarded = req.headers["x-forwarded-for"];
+    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const ip = raw?.split(",")[0]?.trim();
+    if (ip) return ip;
+  }
+  return (req.socket.remoteAddress ?? "").trim();
 }
 
 function locked(key: string): boolean {
@@ -715,6 +732,7 @@ const esc = (value: unknown) =>
 const entry = process.argv[1];
 if (entry && import.meta.url === pathToFileURL(entry).href) {
   startServer().then(({ port }) => {
-    console.log(`dashboard http://127.0.0.1:${port}`);
+    const shown = process.env.HOST ?? "0.0.0.0";
+    console.log(`dashboard http://${shown}:${port}`);
   });
 }
