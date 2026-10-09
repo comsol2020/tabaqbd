@@ -110,7 +110,7 @@ async function userLogin(req: http.IncomingMessage, res: http.ServerResponse, ct
   const bin = await importerPinMatches(ctx.kv, form.get("bin") ?? "", form.get("pin") ?? "");
   if (!bin) {
     markFail(key);
-    redirect(res, "/?msg=" + encodeURIComponent("BIN বা পিন মিলছে না।"));
+    redirect(res, "/?msg=" + encodeURIComponent("ইউজার আইডি বা পাসওয়ার্ড মিলছে না।"));
     return;
   }
   clearFail(key);
@@ -156,6 +156,11 @@ async function userHome(
     .join("");
   const body = `
     ${note(url)}
+    <section class="card">
+      <h2>নির্দেশনা</h2>
+      <p>ইম্পোর্টারের BIN ও পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
+      <p>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</p>
+    </section>
     <section class="card">
       <h2>আপলোড</h2>
       <p class="note">এক পাতা করে দিন। কনফার্মের পর খাতায় যাবে।</p>
@@ -475,14 +480,21 @@ function loginPage(msg: string | null): string {
   return page(
     "প্রবেশ",
     `${msg ? `<p class="note">${esc(msg)}</p>` : ""}
-    <section class="card">
-      <p>ইম্পোর্টারের BIN ও ১১ সংখ্যার পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
-      <form method="post" action="/login" class="row">
-        <label>BIN <input name="bin" required autocomplete="username" inputmode="numeric"></label>
-        <label>পিন <input name="pin" type="password" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}" autocomplete="current-password"></label>
-        <button>প্রবেশ</button>
+    <section class="card login-card">
+      <h2>প্রবেশ</h2>
+      <form method="post" action="/login" class="stack">
+        <label>ইউজার আইডি
+          <input name="bin" required autocomplete="username" inputmode="numeric" minlength="13" maxlength="13" pattern="[0-9]{13}" placeholder="১৩ সংখ্যার বিন নম্বর">
+          <span class="hint">ইউজার আইডি আপনার বিন নম্বর।</span>
+        </label>
+        <label>পাসওয়ার্ড
+          <input name="pin" type="password" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}" autocomplete="current-password" placeholder="১১ সংখ্যা">
+          <span class="hint">পাসওয়ার্ড ১১ সংখ্যার সংখ্যা।</span>
+        </label>
+        <button>ঢুকুন</button>
       </form>
     </section>`,
+    { slogan: "অনলাইনে ভ্যাট দাখিল করুন, জরিমানা এড়াতে সঠিকভাবে খাতা সংরক্ষণ করুন" },
   );
 }
 
@@ -511,42 +523,56 @@ function note(url: URL): string {
   return msg ? `<p class="note">${esc(msg)}</p>` : "";
 }
 
-function page(title: string, body: string, opts: { nav?: string } = {}): string {
-  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="description" content="osbdsyl.online — ইম্পোর্টারদের মূসক বই"><title>${esc(title)} — osbdsyl.online</title>
+function page(title: string, body: string, opts: { nav?: string; slogan?: string } = {}): string {
+  const nav = opts.nav ?? "";
+  const head = opts.slogan
+    ? `<header class="hero"><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p><h1 class="slogan">${esc(opts.slogan)}</h1></header>`
+    : `<header class="bar"><div><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p><h1>${esc(title)}</h1></div>${nav ? `<nav>${nav}</nav>` : ""}</header>`;
+  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="description" content="osbdsyl.online — অনলাইনে ভ্যাট দাখিল ও খাতা সংরক্ষণ"><title>${esc(title)} — osbdsyl.online</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;color:#16324a;min-height:100vh;background:linear-gradient(180deg,#ffffff 0%,#f5fbff 42%,#e7f4fd 100%)}
-      .accent{height:4px;background:linear-gradient(90deg,#9fd8ff,#1c8ad6 48%,#d7f0ff)}
-      .bar{background:rgba(255,255,255,.94);border-bottom:1px solid #d7ebf8;box-shadow:0 8px 28px rgba(28,138,214,.06)}
-      header,main,footer{max-width:920px;margin:0 auto;padding:16px 20px}
-      header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:18px;padding-bottom:18px}
+      :root{--blue:#005ea8;--blue-dark:#00467f;--ink:#1c2b3a;--muted:#5d7082;--line:#d3e0ec;--bg:#eef3f7}
+      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;color:var(--ink);min-height:100vh;background:var(--bg)}
+      .top{background:linear-gradient(180deg,#0b73c4 0%,#005ea8 55%,#004e92 100%);color:#fff;border-bottom:4px solid #0b8f4e}
+      header{max-width:960px;margin:0 auto;padding:18px 22px 22px}
+      header.bar{display:flex;justify-content:space-between;align-items:center;gap:16px}
       .brand{margin:0;font-weight:700;letter-spacing:.01em}
-      .brand a{color:#1a8cd8;text-decoration:none}
-      h1{font-size:1.35rem;margin:2px 0 0;font-weight:600;color:#0f4c75}
+      .brand a{color:#fff;text-decoration:none}
+      .brand span{display:block;margin-top:2px;font-weight:400;font-size:.82rem;opacity:.88}
+      h1{font-size:1.25rem;margin:4px 0 0;font-weight:600}
+      h1.slogan{font-size:clamp(1.55rem,3.5vw,2.3rem);line-height:1.4;font-weight:700;max-width:16em;margin:16px 0 4px}
       nav{display:flex;gap:12px;align-items:center}
-      nav a{color:#1a8cd8;text-decoration:none;font-weight:600}
-      a{color:#1577be}
-      button,.btn{background:linear-gradient(180deg,#49b0ef,#1c8ad6);color:#fff;border:0;border-radius:10px;padding:9px 16px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block;box-shadow:0 6px 16px rgba(28,138,214,.22)}
-      button.danger{background:linear-gradient(180deg,#e07a7a,#c45353);box-shadow:0 6px 16px rgba(196,83,83,.18)}
-      table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden}
-      th,td{border:1px solid #e3f2fb;padding:8px;text-align:left;vertical-align:top}
-      th{background:#eef7fd;color:#0e6eaf}
-      form.row,header form{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+      nav a{color:#fff;text-decoration:none;font-weight:600}
+      a{color:#005ea8}
+      main,footer{max-width:960px;margin:0 auto;padding:8px 22px 28px}
+      button,.btn{background:#0070c0;color:#fff;border:0;border-radius:3px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
+      button:hover,.btn:hover{background:var(--blue-dark)}
+      button.danger{background:#c44747}
+      button.danger:hover{background:#a33636}
+      nav button{background:#fff;color:var(--blue)}
+      table{border-collapse:collapse;width:100%;background:#fff}
+      th,td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
+      th{background:#e7f1f8;color:#0b4f86}
+      form.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
       header form{display:inline}
-      label{display:flex;flex-direction:column;gap:4px;font-size:.92rem;color:#3d6278}
-      input{font:inherit;padding:9px 10px;border:1px solid #cfe6f6;border-radius:10px;background:#fff;color:#16324a}
-      input:focus{outline:3px solid #d7efff;border-color:#7ec8f0}
-      .card{background:#fff;border:1px solid #e4f2fb;border-radius:16px;padding:18px;margin:18px 0;box-shadow:0 12px 32px rgba(28,138,214,.08)}
-      .note{color:#5d7a90}
-      footer{color:#6b8aa0;font-size:.85rem}
-      @media (max-width:640px){header{align-items:flex-start;flex-direction:column}}
+      label{display:flex;flex-direction:column;gap:6px;font-weight:600}
+      .hint{font-weight:400;color:var(--muted);font-size:.84rem}
+      input{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #b7c9da;border-radius:3px;background:#fff;color:var(--ink)}
+      input:focus{outline:2px solid #0070c0;border-color:#0070c0}
+      .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--blue);padding:18px 18px 16px;margin:16px 0;box-shadow:0 1px 2px rgba(16,42,67,.06)}
+      .card h2{margin:0 0 10px;font-size:1.05rem;color:#0b4f86}
+      .login-card{max-width:420px;margin:28px auto}
+      form.stack{display:flex;flex-direction:column;gap:14px}
+      form.stack button{align-self:flex-start;min-width:148px}
+      .note{color:var(--muted)}
+      footer{color:#6b7c8d;font-size:.85rem}
+      @media (max-width:640px){header.bar{align-items:flex-start;flex-direction:column}}
     </style></head><body>
-    <div class="accent"></div>
-    <div class="bar"><header><div><p class="brand"><a href="/">osbdsyl.online</a></p><h1>${esc(title)}</h1></div><nav>${opts.nav ?? `<a href="/op">অপারেটর</a>`}</nav></header></div>
+    <div class="top">${head}</div>
     <main>${body}</main>
-    <footer><p>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</p></footer>
+    <footer><p>osbdsyl.online</p></footer>
     </body></html>`;
 }
 

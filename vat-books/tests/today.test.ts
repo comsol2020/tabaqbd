@@ -277,6 +277,10 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     const home = await (await fetch(`${base}/`)).text();
     assert.match(home, /osbdsyl\.online/);
     assert.match(home, /action="\/login"/);
+    assert.match(home, /ইউজার আইডি/);
+    assert.match(home, /অনলাইনে ভ্যাট দাখিল করুন/);
+    assert.doesNotMatch(home, /href="\/op"/);
+    assert.doesNotMatch(home, /পোর্টালে কিছু পাঠায় না/);
     const health = await fetch(`${base}/health`);
     assert.equal(health.status, 200);
     assert.equal(await health.text(), "ok");
@@ -307,7 +311,10 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     form.set("page", new Blob([new Uint8Array(PNG)], { type: "image/png" }), "page.png");
     const uploaded = await fetch(`${base}/upload`, { method: "POST", headers: { cookie: userCookie }, body: form, redirect: "manual" });
     assert.equal(uploaded.status, 303);
-    assert.match(await (await fetch(`${base}/app`, { headers: { cookie: userCookie } })).text(), /অপেক্ষমাণ/);
+    const appHtml = await (await fetch(`${base}/app`, { headers: { cookie: userCookie } })).text();
+    assert.match(appHtml, /অপেক্ষমাণ/);
+    assert.match(appHtml, /পোর্টালে কিছু পাঠায় না/);
+    assert.match(appHtml, /এক পাতা করে বিল অব এন্ট্রি আপলোড করুন/);
 
     const disk = openDisk(dir);
     const pending = await listUploads(disk);
