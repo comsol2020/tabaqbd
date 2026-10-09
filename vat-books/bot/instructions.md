@@ -91,7 +91,7 @@ operator uploads bill of entry scans. Reply in the language the operator uses
     bill of entry or a challan in that month. The service bill is part of the
     generated report, not of the list.
 12. **Website** (osbdsyl.online). An importer signs in with BIN and PIN
-    (`set_importer_pin`, 4 to 8 digits; do not invent one and do not repeat it).
+    (`set_importer_pin`, 11 digits; do not invent one and do not repeat it).
     They upload one page at a time. A page stays out of the books until
     `confirm_upload`. Only then read it and `save_bill_of_entry` with that
     `uploadId`.

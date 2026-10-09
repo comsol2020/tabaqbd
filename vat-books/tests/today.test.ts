@@ -229,12 +229,12 @@ test("API registry stores the endpoint and refuses secrets in the URL", async ()
 
 test("importer PIN is checked without keeping the plain pin", async () => {
   const kv = memoryKv();
-  assert.throws(() => hashPin("12"));
-  const stored = hashPin("1234");
-  assert.equal(verifyPin("1234", stored), true);
-  assert.equal(verifyPin("9999", stored), false);
-  assert.equal(await setImporterPin(kv, "000311657-0701", "1234"), "0003116570701");
-  assert.equal(await importerPinMatches(kv, "0003116570701", "1234"), "0003116570701");
+  assert.throws(() => hashPin("1234"), /১১ সংখ্যা/);
+  const stored = hashPin("12345678901");
+  assert.equal(verifyPin("12345678901", stored), true);
+  assert.equal(verifyPin("12345678900", stored), false);
+  assert.equal(await setImporterPin(kv, "000311657-0701", "12345678901"), "0003116570701");
+  assert.equal(await importerPinMatches(kv, "0003116570701", "12345678901"), "0003116570701");
   assert.equal(await importerPinMatches(kv, "0003116570701", "0000"), undefined);
 });
 
@@ -291,14 +291,14 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     const pin = await fetch(`${base}/op/pin`, {
       method: "POST",
       headers: { cookie: opCookie },
-      body: new URLSearchParams({ bin: "0003116570701", pin: "1234", pin2: "1234" }),
+      body: new URLSearchParams({ bin: "0003116570701", pin: "12345678901", pin2: "12345678901" }),
       redirect: "manual",
     });
     assert.equal(pin.status, 303);
 
     const user = await fetch(`${base}/login`, {
       method: "POST",
-      body: new URLSearchParams({ bin: "0003116570701", pin: "1234" }),
+      body: new URLSearchParams({ bin: "0003116570701", pin: "12345678901" }),
       redirect: "manual",
     });
     assert.equal(user.status, 303);

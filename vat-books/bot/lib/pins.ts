@@ -6,8 +6,8 @@ import { normalizeBin } from "./vat.js";
 const pinKey = (bin: string) => `pin:${bin}`;
 
 export function assertPin(pin: string): void {
-  if (!/^\d{4,8}$/.test(pin)) {
-    throw new Error("PIN must be 4 to 8 digits.");
+  if (!/^\d{11}$/.test(pin)) {
+    throw new Error("পিন ১১ সংখ্যার হতে হবে।");
   }
 }
 

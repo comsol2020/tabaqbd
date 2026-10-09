@@ -263,10 +263,11 @@ async function operatorHome(
     </section>
     <section class="card">
       <h2>ইউজার পিন</h2>
+      <p class="note">পিন ১১ সংখ্যার নম্বর।</p>
       <form method="post" action="/op/pin" class="row">
         <label>BIN <input name="bin" required></label>
-        <label>পিন <input name="pin" required inputmode="numeric" pattern="[0-9]{4,8}"></label>
-        <label>আবার <input name="pin2" required inputmode="numeric" pattern="[0-9]{4,8}"></label>
+        <label>পিন <input name="pin" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}"></label>
+        <label>আবার <input name="pin2" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}"></label>
         <button>পিন সেট</button>
       </form>
     </section>
@@ -475,10 +476,10 @@ function loginPage(msg: string | null): string {
     "প্রবেশ",
     `${msg ? `<p class="note">${esc(msg)}</p>` : ""}
     <section class="card">
-      <p>ইম্পোর্টারের BIN ও পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
+      <p>ইম্পোর্টারের BIN ও ১১ সংখ্যার পিন দিয়ে ঢুকুন। এক পাতা করে বিল অব এন্ট্রি আপলোড করুন। মাস বেছে ৬.১, ৬.২, ৬.৩ ও রিপোর্টের পিডিএফ নিন। আপলোড কনফার্মের পর খাতায় যায়।</p>
       <form method="post" action="/login" class="row">
         <label>BIN <input name="bin" required autocomplete="username" inputmode="numeric"></label>
-        <label>পিন <input name="pin" type="password" required inputmode="numeric" autocomplete="current-password"></label>
+        <label>পিন <input name="pin" type="password" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}" autocomplete="current-password"></label>
         <button>প্রবেশ</button>
       </form>
     </section>`,
