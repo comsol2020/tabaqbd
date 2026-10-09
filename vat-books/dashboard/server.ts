@@ -95,6 +95,8 @@ async function handle(
   if (method === "GET" && url.pathname === "/op/reset") return operatorResetPage(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/reset") return operatorReset(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/uploads") return operatorUploadsPage(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/manual") return operatorManualPage(req, res, ctx, url);
+  if (method === "POST" && url.pathname === "/op/manual") return operatorManualUpload(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/api") return operatorApiPage(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/monthly") return operatorMonthlyPage(req, res, url);
   if (method === "GET" && url.pathname === "/op/parties") return operatorParties(req, res, ctx, url);
@@ -324,7 +326,7 @@ async function operatorUploadsPage(
         row.contentType.startsWith("image/")
           ? `<img alt="" src="/op/file/${esc(row.id)}" style="max-width:180px;max-height:120px">`
           : `<a href="/op/file/${esc(row.id)}">PDF</a>`;
-      return `<tr><td>${esc(row.bin)}</td><td>${esc(row.fileName)}<br>${preview}</td><td>
+      return `<tr><td>${esc(row.bin)}</td><td>${esc(row.entryDate ?? "—")}</td><td>${esc(row.fileName)}<br>${preview}</td><td>
         <form method="post" action="/op/upload/confirm"><input type="hidden" name="id" value="${esc(row.id)}"><button>কনফার্ম</button></form>
       </td></tr>`;
     })
@@ -334,9 +336,63 @@ async function operatorUploadsPage(
     <section class="card">
       <h2>আপলোড কনফার্ম</h2>
       <p class="note">কনফার্মের আগে খাতায় যায় না। কনফার্মের পর এজেন্ট পড়ে সেভ করলে সংখ্যা বসবে।</p>
-      <table><thead><tr><th>BIN</th><th>পাতা</th><th></th></tr></thead><tbody>${uploadRows || `<tr><td colspan="3">অপেক্ষমাণ আপলোড নেই।</td></tr>`}</tbody></table>
+      <table><thead><tr><th>BIN</th><th>তারিখ</th><th>পাতা</th><th></th></tr></thead><tbody>${uploadRows || `<tr><td colspan="4">অপেক্ষমাণ আপলোড নেই।</td></tr>`}</tbody></table>
     </section>`;
   sendHtml(res, 200, page("আপলোড", body, { tabs: opTabs("/op/uploads") }));
+}
+
+async function operatorManualPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const rows = (await listUploads(ctx.kv))
+    .filter((row) => row.entryDate)
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.createdAt.slice(0, 16).replace("T", " "))}</td><td>${esc(row.bin)}</td><td>${esc(row.entryDate)}</td><td>${esc(row.fileName)}</td><td>${esc(statusText(row.status))}</td></tr>`,
+    )
+    .join("");
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>ম্যানুয়াল এন্ট্রি</h2>
+      <p class="note">যে তারিখ দেবেন, বিল অব এন্ট্রির তারিখ সেটাই হবে। কনফার্মের পর খাতায় যাবে।</p>
+      <form method="post" action="/op/manual" enctype="multipart/form-data" class="row">
+        <label>BIN <input name="bin" required inputmode="numeric"></label>
+        <label>তারিখ <input name="date" type="date" required></label>
+        <label>বিল অব এন্ট্রি <input type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" required></label>
+        <button>আপলোড</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>দেওয়া এন্ট্রি</h2>
+      <table><thead><tr><th>সময়</th><th>BIN</th><th>তারিখ</th><th>ফাইল</th><th>অবস্থা</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">এখনো কোনো ম্যানুয়াল এন্ট্রি নেই।</td></tr>`}</tbody></table>
+    </section>`;
+  sendHtml(res, 200, page("ম্যানুয়াল এন্ট্রি", body, { tabs: opTabs("/op/manual") }));
+}
+
+async function operatorManualUpload(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { dataDir: string; kv: Kv },
+): Promise<void> {
+  requireOperator(req);
+  const form = await readManualUpload(req);
+  const bin = normalizeBin(form.bin);
+  const type = sniff(form.file.data);
+  if (!type) throw new HttpError("শুধু JPG, PNG, WEBP বা এক পাতার PDF দেওয়া যাবে।");
+  await saveUpload(ctx.kv, ctx.dataDir, {
+    bin,
+    fileName: safeName(form.file.filename),
+    contentType: type,
+    data: form.file.data,
+    entryDate: form.date,
+  });
+  redirect(res, "/op/manual?msg=" + encodeURIComponent(`আপলোড হয়েছে। তারিখ ${form.date}। কনফার্মের পর খাতায় যাবে।`));
 }
 
 async function operatorPinPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
@@ -632,7 +688,7 @@ function userNav(): string {
 function opTabs(current: string): string {
   const item = (href: string, label: string) =>
     `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
-  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
 }
 
 type NamedCustomer = { bin: string; name: string };
@@ -815,6 +871,18 @@ function readCookie(req: http.IncomingMessage, name: string): string | undefined
 async function readForm(req: http.IncomingMessage): Promise<URLSearchParams> {
   const body = await readBody(req);
   return new URLSearchParams(body.toString("utf8"));
+}
+
+async function readManualUpload(req: http.IncomingMessage): Promise<{ bin: string; date: string; file: { filename: string; data: Buffer } }> {
+  const type = req.headers["content-type"] ?? "";
+  if (!type.includes("multipart/form-data")) throw new HttpError("এক পাতা করে আপলোড করুন।");
+  const parts = parseMultipart(await readBody(req), type);
+  const files = parts.filter((part) => part.filename);
+  if (files.length !== 1) throw new HttpError("এক পাতা করে আপলোড করুন।");
+  const file = files[0];
+  if (!file || file.data.length === 0) throw new HttpError("ফাইল বেছে নিন।");
+  const text = (name: string) => parts.find((part) => part.name === name && !part.filename)?.data.toString("utf8").trim() ?? "";
+  return { bin: text("bin"), date: text("date"), file: { filename: file.filename ?? "page", data: file.data } };
 }
 
 async function readSingleFile(req: http.IncomingMessage): Promise<{ filename: string; data: Buffer }> {

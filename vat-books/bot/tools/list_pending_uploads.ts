@@ -10,7 +10,8 @@ export default defineTool({
     List pages importers uploaded on the website. A pending page is not in
     the books. Read and save a page only after its status is confirmed, and
     pass its id as uploadId to save_bill_of_entry. filePath is set only once
-    the page is confirmed.
+    the page is confirmed. If entryDate is set, that is the bill of entry
+    date: pass it as boe.date. Do not use the upload day instead.
   `,
   effect: "read",
   inputSchema: z.object({
@@ -30,6 +31,7 @@ export default defineTool({
         bytes: row.bytes,
         status: row.status,
         createdAt: row.createdAt,
+        entryDate: row.entryDate,
         filePath: row.status === "pending" ? undefined : uploadFile(diskDir(), row.id),
       })),
     };

@@ -267,6 +267,19 @@ test("upload accepts one image and refuses a multi-page PDF", async () => {
     /এক পাতা/,
   );
   assert.equal((await listUploads(kv)).length, 1);
+  const dated = await saveUpload(kv, dir, {
+    bin: "1234567890123",
+    fileName: "sept.png",
+    contentType: "image/png",
+    data: PNG,
+    entryDate: "2026-09-15",
+  });
+  assert.equal(dated.entryDate, "2026-09-15");
+  assert.equal((await listUploads(kv)).find((row) => row.id === dated.id)?.entryDate, "2026-09-15");
+  await assert.rejects(
+    () => saveUpload(kv, dir, { bin: "1234567890123", fileName: "bad.png", contentType: "image/png", data: PNG, entryDate: "15-09-2026" }),
+    /তারিখ/,
+  );
 });
 
 test("dashboard: pin, one page, report button, confirmed reset, API", { timeout: 40_000 }, async () => {

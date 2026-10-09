@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { asJson } from "./disk.js";
 import type { Kv } from "./store.js";
+import { isIsoDate } from "./vat.js";
 
 const UPLOADS = "uploads";
 
@@ -16,6 +17,8 @@ export type UploadMeta = {
   bytes: number;
   status: UploadStatus;
   createdAt: string;
+  /** Operator-chosen bill date for a manual entry. Absent on a normal importer upload. */
+  entryDate?: string;
   confirmedAt?: string;
   postedAt?: string;
   boeKey?: string;
@@ -54,9 +57,11 @@ export async function listUploads(kv: Kv, bin?: string): Promise<UploadMeta[]> {
 export async function saveUpload(
   kv: Kv,
   dir: string,
-  input: { bin: string; fileName: string; contentType: string; data: Buffer },
+  input: { bin: string; fileName: string; contentType: string; data: Buffer; entryDate?: string },
 ): Promise<UploadMeta> {
   assertSinglePage(input.contentType, input.data);
+  const entryDate = input.entryDate?.trim();
+  if (entryDate && !isIsoDate(entryDate)) throw new Error("তারিখ YYYY-MM-DD হতে হবে।");
   const id = crypto.randomBytes(16).toString("hex");
   const meta: UploadMeta = {
     id,
@@ -66,6 +71,7 @@ export async function saveUpload(
     bytes: input.data.length,
     status: "pending",
     createdAt: new Date().toISOString(),
+    ...(entryDate ? { entryDate } : {}),
   };
   await fs.mkdir(path.join(dir, "uploads"), { recursive: true });
   await fs.writeFile(uploadFile(dir, id), input.data);
