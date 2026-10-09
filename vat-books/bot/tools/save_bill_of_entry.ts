@@ -1,7 +1,7 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
-import { applyBoe } from "../lib/boe.js";
+import { applyBoe, sameBill } from "../lib/boe.js";
 import { diskDir, openDisk } from "../lib/disk.js";
 import { glanceRows } from "../lib/glance.js";
 import { mirrorImporter } from "../lib/mirror.js";
@@ -26,8 +26,10 @@ export default defineTool({
     does not yet have — the name the operator typed, not the scan's description
     text. Value addition % is once per BIN: pass valueAdditionPct only if this
     importer has none yet. A BIN seen for the first time gets its books created
-    automatically. Saving the same bill of entry number and date again changes
-    nothing. Mushak 4.3 is published only on the first declaration or when
+    automatically.     Saving the same bill of entry C-number and date again changes
+    nothing, including a manual entry. When duplicate is true, tell the
+    operator the notice in their language and stop. Do not add the stock
+    again. Mushak 4.3 is published only on the first declaration or when
     unit cost moves more than 7.5%. 6.1 and 6.2.1 are published on every save.
   `,
   effect: "write",
@@ -98,12 +100,14 @@ export default defineTool({
         `Name on this document ("${importer.name}") differs from the name on file ("${doc.name}") for BIN ${bin}. Filed under the BIN.`,
       );
     }
-    const duplicate = doc.purchases.some((p) => p.boeKey === boeKey);
+    const prior = doc.purchases.find((p) => sameBill(boe.number, boe.date, p.boeNo, p.boeDate));
+    const duplicate = prior !== undefined;
     const website = openDisk();
     if (uploadId) await assertUploadForSave(website, uploadId, bin, duplicate);
-    if (duplicate) {
-      if (uploadId) await markUploadPosted(website, uploadId, boeKey);
-      return { saved: false, duplicate: true, bin, boeKey, warnings };
+    if (prior) {
+      if (uploadId) await markUploadPosted(website, uploadId, prior.boeKey);
+      const notice = `আগে ${prior.boeDate} তারিখে এই বিল অব এন্ট্রি (${prior.boeNo}) যোগ করা হয়েছে। আবার যোগ হয়নি।`;
+      return { saved: false, duplicate: true, bin, boeKey: prior.boeKey, notice, warnings };
     }
     const catalog = await loadHsCatalog(kv);
     const result = applyBoe(doc, boe, catalog);

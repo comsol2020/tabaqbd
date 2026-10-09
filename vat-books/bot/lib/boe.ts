@@ -38,10 +38,16 @@ export type ApplyBoeResult = {
   publish43: boolean;
 };
 
+/** Same paper: C-number and bill date. Spacing and letter case do not make a second bill. */
+export function sameBill(number: string, date: string, otherNo: string, otherDate: string): boolean {
+  const norm = (value: string) => value.trim().toUpperCase().replace(/\s+/g, "");
+  return otherDate === date && norm(otherNo) === norm(number);
+}
+
 export function applyBoe(doc: ImporterDoc, boe: BoeInput, catalog: HsCatalog): ApplyBoeResult {
   if (!isIsoDate(boe.date)) throw new Error(`boe.date must be YYYY-MM-DD, got "${boe.date}"`);
   const boeKey = `${boe.number.trim()}|${boe.date}`;
-  if (doc.purchases.some((p) => p.boeKey === boeKey)) {
+  if (doc.purchases.some((p) => sameBill(boe.number, boe.date, p.boeNo, p.boeDate))) {
     throw new Error(`duplicate:${boeKey}`);
   }
   const pct = boe.valueAdditionPct ?? doc.additionPct;

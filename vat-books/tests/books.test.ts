@@ -331,6 +331,13 @@ test("value addition is once per BIN; 4.3 regenerates only after a 7.5% cost mov
   assert.match(third.warnings.join(" "), /7\.5%/);
   assert.equal(buildBook(doc, "4.3").rows.length, 1);
   assert.equal(buildBook(doc, "4.3").rows[0]?.inputValue, 108);
+  assert.throws(
+    () => applyBoe(doc, { number: "c-1", date: "2026-09-01", items: [item(100)] }, third.catalog),
+    /duplicate/,
+  );
+  const otherDay = applyBoe(doc, { number: "C-1", date: "2026-10-01", items: [item(100)] }, third.catalog);
+  assert.equal(otherDay.lines[0]?.boeNo, "C-1");
+  assert.equal(otherDay.lines[0]?.boeDate, "2026-10-01");
 });
 
 test("removing a bill of entry works only before any sale", () => {

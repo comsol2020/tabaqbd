@@ -97,7 +97,9 @@ operator uploads bill of entry scans. Reply in the language the operator uses
     `uploadId`. The month the file was uploaded is not the book month.
     Mushak 6.1 follows the bill of entry date. A sale date cannot be before
     that bill date. Mushak 6.3 follows the sale date. If the upload has
-    `entryDate` (manual entry), pass that as `boe.date`.
+    `entryDate` (manual entry), pass that as `boe.date`. The same C-number
+    and bill date cannot be saved twice. If `save_bill_of_entry` returns
+    `duplicate`, show its `notice` and stop. Do not add that stock again.
 13. **APIs**. `add_api` registers a label, https base URL, and the env var that
     holds the key. `list_apis` shows them. `remove_api` drops one. Never put
     the key in the call. Registering does not call the API. Do not send books,
