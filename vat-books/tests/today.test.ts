@@ -351,7 +351,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
       redirect: "manual",
     });
     assert.equal(added.status, 303);
-    assert.match(await (await fetch(`${base}/op`, { headers: { cookie: opCookie } })).text(), /NBR_API_KEY/);
+    assert.match(await (await fetch(`${base}/op/api`, { headers: { cookie: opCookie } })).text(), /NBR_API_KEY/);
 
     const doc: ImporterDoc = newImporter("0003116570701", "Aritree");
     doc.purchases.push(
@@ -359,6 +359,12 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
       line({ boeNo: "C-88", boeDate: "2026-03-02", boeKey: "C-88|2026-03-02", lineId: "C-88|2026-03-02#1", serial: 2 }),
     );
     await saveImporter(disk, doc);
+    assert.match(await (await fetch(`${base}/op`, { headers: { cookie: opCookie } })).text(), /Aritree/);
+    const customer = await (await fetch(`${base}/op/customer?bin=0003116570701`, { headers: { cookie: opCookie } })).text();
+    assert.match(customer, /Aritree/);
+    assert.match(customer, /name="form" value="6.1"/);
+    assert.match(customer, /name="form" value="6.3"/);
+    assert.match(customer, /type="month"/);
     const parties = await (await fetch(`${base}/op/parties?month=2026-01`, { headers: { cookie: opCookie } })).text();
     assert.match(parties, /রিপোর্ট জেনারেট/);
     assert.match(parties, /Aritree/);

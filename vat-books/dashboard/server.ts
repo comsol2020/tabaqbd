@@ -86,10 +86,16 @@ async function handle(
   if (method === "GET" && url.pathname === "/download") return userDownload(req, res, ctx, url);
   if (method === "GET" && url.pathname.startsWith("/file/")) return sendFile(req, res, ctx, url.pathname.slice("/file/".length), false);
   if (method === "GET" && url.pathname === "/op") return operatorHome(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/customer") return operatorCustomer(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/book") return operatorBook(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/login") return operatorLogin(req, res, ctx);
   if (method === "POST" && url.pathname === "/op/logout") return logout(res, "opid", "/op");
+  if (method === "GET" && url.pathname === "/op/pin") return operatorPinPage(req, res, url);
   if (method === "POST" && url.pathname === "/op/pin") return operatorPin(req, res, ctx);
+  if (method === "GET" && url.pathname === "/op/reset") return operatorResetPage(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/reset") return operatorReset(req, res, ctx);
+  if (method === "GET" && url.pathname === "/op/uploads") return operatorUploadsPage(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/api") return operatorApiPage(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/parties") return operatorParties(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/report") return operatorReport(req, res, ctx, url, false);
   if (method === "GET" && url.pathname === "/op/report.pdf") return operatorReport(req, res, ctx, url, true);
@@ -219,29 +225,75 @@ async function operatorHome(
   url: URL,
 ): Promise<void> {
   if (!operatorSession(req)) return sendHtml(res, 200, operatorLoginPage(url.searchParams.get("msg"), ctx.operatorPin.length > 0));
-  const bins = await listBins(ctx.kv);
-  const uploads = (await listUploads(ctx.kv)).filter((row) => row.status === "pending");
-  const apis = await listApis(ctx.kv);
-  const uploadRows = uploads
-    .map((row) => {
-      const preview =
-        row.contentType.startsWith("image/")
-          ? `<img alt="" src="/op/file/${esc(row.id)}" style="max-width:180px;max-height:120px">`
-          : `<a href="/op/file/${esc(row.id)}">PDF</a>`;
-      return `<tr><td>${esc(row.bin)}</td><td>${esc(row.fileName)}<br>${preview}</td><td>
-        <form method="post" action="/op/upload/confirm"><input type="hidden" name="id" value="${esc(row.id)}"><button>কনফার্ম</button></form>
-      </td></tr>`;
-    })
-    .join("");
-  const apiRows = apis
+  const rows = await customerRows(ctx.kv);
+  const bodyRows = rows
     .map(
       (row) =>
-        `<tr><td>${esc(row.label)}</td><td>${esc(row.id)}</td><td>${esc(row.baseUrl)}</td><td>${esc(row.apiKeyEnv)}</td><td>${esc(row.note)}</td><td>
-          <form method="post" action="/op/api/remove"><input type="hidden" name="id" value="${esc(row.id)}"><button>সরান</button></form>
-        </td></tr>`,
+        `<tr><td>${esc(row.name)}</td><td>${esc(row.bin)}</td><td><a class="btn" href="/op/customer?bin=${esc(row.bin)}">খুলুন</a></td></tr>`,
     )
     .join("");
-  const options = bins.map((bin) => `<option value="${esc(bin)}">`).join("");
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>কাস্টমার</h2>
+      <table><thead><tr><th>প্রতিষ্ঠানের নাম</th><th>BIN</th><th></th></tr></thead>
+      <tbody>${bodyRows || `<tr><td colspan="3">এখনো কোনো কাস্টমার নেই। ইউজার পিন পাতায় নাম দিয়ে যোগ করুন।</td></tr>`}</tbody></table>
+    </section>`;
+  sendHtml(res, 200, page("Admin", body, { tabs: opTabs("/op") }));
+}
+
+async function operatorCustomer(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const bin = normalizeBin(url.searchParams.get("bin") ?? "");
+  const row = (await customerRows(ctx.kv)).find((item) => item.bin === bin);
+  if (!row) throw new HttpError("এই কাস্টমারের নাম নেই।", 404);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>${esc(row.name)}</h2>
+      <p>BIN <strong>${esc(row.bin)}</strong></p>
+      <p>প্রতিষ্ঠানের নাম <strong>${esc(row.name)}</strong></p>
+      <form method="get" action="/op/book" class="row">
+        <input type="hidden" name="bin" value="${esc(row.bin)}">
+        <label>মাস <input type="month" name="month" required></label>
+        <button name="form" value="6.1">৬.১</button>
+        <button name="form" value="6.2">৬.২</button>
+        <button name="form" value="6.3">৬.৩</button>
+        <button name="form" value="report">Report</button>
+      </form>
+    </section>`;
+  sendHtml(res, 200, page(row.name, body, { tabs: opTabs("/op") }));
+}
+
+async function operatorBook(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const bin = normalizeBin(url.searchParams.get("bin") ?? "");
+  const month = url.searchParams.get("month") ?? "";
+  const form = url.searchParams.get("form") ?? "";
+  const html = await bookHtml(await loadImporter(ctx.kv, bin), bin, month, form);
+  const pdf = await htmlToPdf(html);
+  const name = form === "report" ? `report-${bin}-${month}.pdf` : `mushak-${form}-${month}.pdf`;
+  sendPdf(res, pdf, name);
+}
+
+async function operatorResetPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const options = (await listBins(ctx.kv)).map((bin) => `<option value="${esc(bin)}">`).join("");
   const body = `
     ${note(url)}
     <section class="card">
@@ -253,29 +305,75 @@ async function operatorHome(
         <button class="danger">ডিলিট</button>
       </form>
       <datalist id="bins">${options}</datalist>
-    </section>
-    <section class="card">
-      <h2>মাসিক রিপোর্ট</h2>
-      <form method="get" action="/op/parties" class="row">
-        <label>মাস <input type="month" name="month" required></label>
-        <button>Report</button>
-      </form>
-    </section>
+    </section>`;
+  sendHtml(res, 200, page("মাস্টার রিসেট", body, { tabs: opTabs("/op/reset") }));
+}
+
+async function operatorUploadsPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const uploads = (await listUploads(ctx.kv)).filter((row) => row.status === "pending");
+  const uploadRows = uploads
+    .map((row) => {
+      const preview =
+        row.contentType.startsWith("image/")
+          ? `<img alt="" src="/op/file/${esc(row.id)}" style="max-width:180px;max-height:120px">`
+          : `<a href="/op/file/${esc(row.id)}">PDF</a>`;
+      return `<tr><td>${esc(row.bin)}</td><td>${esc(row.fileName)}<br>${preview}</td><td>
+        <form method="post" action="/op/upload/confirm"><input type="hidden" name="id" value="${esc(row.id)}"><button>কনফার্ম</button></form>
+      </td></tr>`;
+    })
+    .join("");
+  const body = `
+    ${note(url)}
     <section class="card">
       <h2>আপলোড কনফার্ম</h2>
       <p class="note">কনফার্মের আগে খাতায় যায় না। কনফার্মের পর এজেন্ট পড়ে সেভ করলে সংখ্যা বসবে।</p>
       <table><thead><tr><th>BIN</th><th>পাতা</th><th></th></tr></thead><tbody>${uploadRows || `<tr><td colspan="3">অপেক্ষমাণ আপলোড নেই।</td></tr>`}</tbody></table>
-    </section>
+    </section>`;
+  sendHtml(res, 200, page("আপলোড", body, { tabs: opTabs("/op/uploads") }));
+}
+
+async function operatorPinPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireOperator(req);
+  const body = `
+    ${note(url)}
     <section class="card">
       <h2>ইউজার পিন</h2>
-      <p class="note">পিন ১১ সংখ্যার নম্বর।</p>
+      <p class="note">পিন ১১ সংখ্যার নম্বর। নাম দিলে কাস্টমার তালিকায় যোগ হয়।</p>
       <form method="post" action="/op/pin" class="row">
+        <label>প্রতিষ্ঠানের নাম <input name="name" required></label>
         <label>BIN <input name="bin" required></label>
         <label>পিন <input name="pin" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}"></label>
         <label>আবার <input name="pin2" required inputmode="numeric" minlength="11" maxlength="11" pattern="[0-9]{11}"></label>
         <button>পিন সেট</button>
       </form>
-    </section>
+    </section>`;
+  sendHtml(res, 200, page("ইউজার পিন", body, { tabs: opTabs("/op/pin") }));
+}
+
+async function operatorApiPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const apis = await listApis(ctx.kv);
+  const apiRows = apis
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.label)}</td><td>${esc(row.id)}</td><td>${esc(row.baseUrl)}</td><td>${esc(row.apiKeyEnv)}</td><td>${esc(row.note)}</td><td>
+          <form method="post" action="/op/api/remove"><input type="hidden" name="id" value="${esc(row.id)}"><button>সরান</button></form>
+        </td></tr>`,
+    )
+    .join("");
+  const body = `
+    ${note(url)}
     <section class="card">
       <h2>API যোগ</h2>
       <p class="note">কী এখানে লিখবেন না। শুধু এনভির নাম, যেমন NBR_API_KEY। নতুন API পরে এই ফর্ম থেকেই যোগ হবে।</p>
@@ -288,7 +386,7 @@ async function operatorHome(
       </form>
       <table><thead><tr><th>নাম</th><th>id</th><th>URL</th><th>এনভ</th><th>নোট</th><th></th></tr></thead><tbody>${apiRows || `<tr><td colspan="6">এখনো কোনো API নেই।</td></tr>`}</tbody></table>
     </section>`;
-  sendHtml(res, 200, page("Admin", body, { nav: opNav() }));
+  sendHtml(res, 200, page("API", body, { tabs: opTabs("/op/api") }));
 }
 
 async function operatorPin(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
@@ -296,7 +394,9 @@ async function operatorPin(req: http.IncomingMessage, res: http.ServerResponse, 
   const form = await readForm(req);
   if ((form.get("pin") ?? "") !== (form.get("pin2") ?? "")) throw new HttpError("দুইবারের পিন এক নয়।");
   const bin = await setImporterPin(ctx.kv, form.get("bin") ?? "", form.get("pin") ?? "");
-  redirect(res, "/op?msg=" + encodeURIComponent(`BIN ${bin}-এর পিন সেট হয়েছে।`));
+  const name = (form.get("name") ?? "").trim().slice(0, 120);
+  if (name) await saveAdminCustomer(ctx.kv, bin, name);
+  redirect(res, "/op/pin?msg=" + encodeURIComponent(`BIN ${bin}-এর পিন সেট হয়েছে।`));
 }
 
 async function operatorReset(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
@@ -309,14 +409,14 @@ async function operatorReset(req: http.IncomingMessage, res: http.ServerResponse
   const preview = previewReset(doc, month);
   const confirm = form.get("confirm") ?? "";
   if (!confirm) {
-    sendHtml(res, 200, page("কনফার্মেশন", resetConfirmHtml(preview), { nav: opNav() }));
+    sendHtml(res, 200, page("কনফার্মেশন", resetConfirmHtml(preview), { tabs: opTabs("/op/reset") }));
     return;
   }
   if (confirm !== preview.phrase) throw new HttpError("কনফার্মেশন মেলেনি। কিছু মুছে ফেলা হয়নি।");
   applyReset(doc, month);
   await saveImporter(ctx.kv, doc);
   await recordDeletion(ctx.kv, bin, month);
-  redirect(res, "/op?msg=" + encodeURIComponent(`${bin} এর ${month} মাস মুছে ফেলা হয়েছে।`));
+  redirect(res, "/op/reset?msg=" + encodeURIComponent(`${bin} এর ${month} মাস মুছে ফেলা হয়েছে।`));
 }
 
 async function operatorParties(
@@ -352,7 +452,7 @@ async function operatorParties(
       <table><thead><tr><th>পার্টি</th><th>BIN</th><th>বিল অব এন্ট্রি</th><th>চালান</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5">এই মাসে কোনো পার্টির লেনদেন নেই।</td></tr>`}</tbody></table>
     </section>`;
-  sendHtml(res, 200, page("মাসিক রিপোর্ট", body, { nav: opNav() }));
+  sendHtml(res, 200, page("মাসিক রিপোর্ট", body, { tabs: opTabs("/op/parties") }));
 }
 
 async function operatorReport(
@@ -380,7 +480,7 @@ async function operatorConfirm(req: http.IncomingMessage, res: http.ServerRespon
   requireOperator(req);
   const form = await readForm(req);
   const upload = await confirmUpload(ctx.kv, form.get("id") ?? "");
-  redirect(res, "/op?msg=" + encodeURIComponent(`BIN ${upload.bin}-এর পাতা কনফার্ম হয়েছে। এজেন্ট সেভ করলে খাতায় বসবে।`));
+  redirect(res, "/op/uploads?msg=" + encodeURIComponent(`BIN ${upload.bin}-এর পাতা কনফার্ম হয়েছে। এজেন্ট সেভ করলে খাতায় বসবে।`));
 }
 
 async function operatorAddApi(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
@@ -392,14 +492,14 @@ async function operatorAddApi(req: http.IncomingMessage, res: http.ServerRespons
     apiKeyEnv: form.get("apiKeyEnv") ?? "",
     note: form.get("note") ?? "",
   });
-  redirect(res, "/op?msg=" + encodeURIComponent(`API ${entry.label} যোগ হয়েছে। কল করা হয়নি।`));
+  redirect(res, "/op/api?msg=" + encodeURIComponent(`API ${entry.label} যোগ হয়েছে। কল করা হয়নি।`));
 }
 
 async function operatorRemoveApi(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
   requireOperator(req);
   const form = await readForm(req);
   await removeApi(ctx.kv, form.get("id") ?? "");
-  redirect(res, "/op?msg=" + encodeURIComponent("API সরানো হয়েছে।"));
+  redirect(res, "/op/api?msg=" + encodeURIComponent("API সরানো হয়েছে।"));
 }
 
 async function sendFile(
@@ -441,11 +541,11 @@ async function bookHtml(
 
 function resetConfirmHtml(preview: ReturnType<typeof previewReset>): string {
   if (preview.empty) {
-    return `<section class="card"><p>${esc(preview.bin)} এর ${esc(preview.month)} মাসে মুছার মতো কিছু নেই।</p><p><a href="/op">ফিরে যান</a></p></section>`;
+    return `<section class="card"><p>${esc(preview.bin)} এর ${esc(preview.month)} মাসে মুছার মতো কিছু নেই।</p><p><a href="/op/reset">ফিরে যান</a></p></section>`;
   }
   if (preview.blocked.length > 0) {
     const items = preview.blocked.map((row) => `<li>${esc(row.challanNo)} — ${esc(row.issueDate)}</li>`).join("");
-    return `<section class="card"><p>এই মাসের বিলের চালান অন্য মাসে আছে, তাই মুছা হয়নি।</p><ul>${items}</ul><p><a href="/op">ফিরে যান</a></p></section>`;
+    return `<section class="card"><p>এই মাসের বিলের চালান অন্য মাসে আছে, তাই মুছা হয়নি।</p><ul>${items}</ul><p><a href="/op/reset">ফিরে যান</a></p></section>`;
   }
   return `<section class="card">
     <h2>কনফার্মেশন</h2>
@@ -456,7 +556,7 @@ function resetConfirmHtml(preview: ReturnType<typeof previewReset>): string {
       <input type="hidden" name="month" value="${esc(preview.month)}">
       <input type="hidden" name="confirm" value="${esc(preview.phrase)}">
       <button class="danger">কনফার্ম</button>
-      <a class="btn" href="/op">বাতিল</a>
+      <a class="btn" href="/op/reset">বাতিল</a>
     </form>
   </section>`;
 }
@@ -514,8 +614,45 @@ function userNav(): string {
   return `<a href="/app">হোম</a> <form method="post" action="/logout"><button>বের হন</button></form>`;
 }
 
-function opNav(): string {
-  return `<a href="/op">Admin</a> <form method="post" action="/op/logout"><button>Signout</button></form>`;
+function opTabs(current: string): string {
+  const item = (href: string, label: string) =>
+    `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+}
+
+type NamedCustomer = { bin: string; name: string };
+
+async function loadAdminCustomers(kv: Kv): Promise<NamedCustomer[]> {
+  const value = await kv.get("admin:customers");
+  if (!Array.isArray(value)) return [];
+  const rows: NamedCustomer[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const bin = "bin" in item && typeof item.bin === "string" ? item.bin : "";
+    const name = "name" in item && typeof item.name === "string" ? item.name.trim() : "";
+    if (bin && name) rows.push({ bin, name });
+  }
+  return rows;
+}
+
+async function saveAdminCustomer(kv: Kv, bin: string, name: string): Promise<void> {
+  const rows = (await loadAdminCustomers(kv)).filter((row) => row.bin !== bin);
+  rows.push({ bin, name });
+  rows.sort((a, b) => a.name.localeCompare(b.name, "bn") || a.bin.localeCompare(b.bin));
+  await kv.put("admin:customers", rows as unknown as Parameters<Kv["put"]>[1]);
+}
+
+async function customerRows(kv: Kv): Promise<NamedCustomer[]> {
+  const byBin = new Map<string, string>();
+  for (const row of await loadAdminCustomers(kv)) byBin.set(row.bin, row.name);
+  for (const bin of await listBins(kv)) {
+    if (byBin.get(bin)) continue;
+    const name = (await loadImporter(kv, bin))?.name?.trim();
+    if (name) byBin.set(bin, name);
+  }
+  return [...byBin.entries()]
+    .map(([bin, name]) => ({ bin, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "bn") || a.bin.localeCompare(b.bin));
 }
 
 function note(url: URL): string {
@@ -523,10 +660,10 @@ function note(url: URL): string {
   return msg ? `<p class="note">${esc(msg)}</p>` : "";
 }
 
-function page(title: string, body: string, opts: { nav?: string; slogan?: string } = {}): string {
+function page(title: string, body: string, opts: { nav?: string; slogan?: string; tabs?: string } = {}): string {
   const nav = opts.nav ?? "";
   const head = opts.slogan
-    ? `<header class="hero"><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p><h1 class="slogan">${esc(opts.slogan)}</h1></header>`
+    ? `<header class="hero"><h1 class="slogan">${esc(opts.slogan)}</h1></header>`
     : `<header class="bar"><div><p class="brand"><a href="/">ভ্যাট অনলাইন</a><span>osbdsyl.online</span></p><h1>${esc(title)}</h1></div>${nav ? `<nav>${nav}</nav>` : ""}</header>`;
   return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="description" content="osbdsyl.online — অনলাইনে ভ্যাট দাখিল ও খাতা সংরক্ষণ"><title>${esc(title)} — osbdsyl.online</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -542,9 +679,15 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       .brand a{color:#fff;text-decoration:none}
       .brand span{display:block;margin-top:2px;font-weight:400;font-size:.82rem;opacity:.88}
       h1{font-size:1.25rem;margin:4px 0 0;font-weight:600}
-      h1.slogan{font-size:clamp(1.55rem,3.5vw,2.3rem);line-height:1.4;font-weight:700;max-width:16em;margin:16px 0 4px}
+      header.hero{text-align:center}
+      h1.slogan{font-size:clamp(1.55rem,3.5vw,2.3rem);line-height:1.4;font-weight:700;max-width:18em;margin:8px auto}
       nav{display:flex;gap:12px;align-items:center}
       nav a{color:#fff;text-decoration:none;font-weight:600}
+      .tabs{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;background:#fff;border-bottom:1px solid var(--line);padding:0 22px}
+      .tabs a{color:var(--blue);padding:12px 12px;border-bottom:3px solid transparent}
+      .tabs a.on{color:var(--blue-dark);border-bottom-color:var(--blue)}
+      .tabs form{margin-left:auto}
+      .tabs button{background:#0070c0;color:#fff;margin:8px 0}
       a{color:#005ea8}
       main,footer{max-width:960px;margin:0 auto;padding:8px 22px 28px}
       button,.btn{background:#0070c0;color:#fff;border:0;border-radius:3px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
@@ -565,12 +708,13 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       .card h2{margin:0 0 10px;font-size:1.05rem;color:#0b4f86}
       .login-card{max-width:420px;margin:28px auto}
       form.stack{display:flex;flex-direction:column;gap:14px}
-      form.stack button{align-self:flex-start;min-width:148px}
+      form.stack button{align-self:center;min-width:148px}
       .note{color:var(--muted)}
       footer{color:#6b7c8d;font-size:.85rem}
       @media (max-width:640px){header.bar{align-items:flex-start;flex-direction:column}}
     </style></head><body>
     <div class="top">${head}</div>
+    ${opts.tabs ?? ""}
     <main>${body}</main>
     <footer><p>osbdsyl.online</p></footer>
     </body></html>`;
