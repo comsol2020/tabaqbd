@@ -670,47 +670,50 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-      :root{--blue:#005ea8;--blue-dark:#00467f;--ink:#1c2b3a;--muted:#5d7082;--line:#d3e0ec;--bg:#eef3f7}
-      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;color:var(--ink);min-height:100vh;background:var(--bg)}
-      .top{background:linear-gradient(180deg,#0b73c4 0%,#005ea8 55%,#004e92 100%);color:#fff;border-bottom:4px solid #0b8f4e}
-      header{max-width:960px;margin:0 auto;padding:18px 22px 22px}
+      :root{--green:#0c6b3d;--green-mid:#1e8c4d;--ink:#222;--muted:#555;--line:#dedede;--bg:#f2f2f2}
+      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;color:var(--ink);min-height:100vh;background:var(--bg);display:flex;flex-direction:column}
+      .top{background:var(--green);color:#fff}
+      header{max-width:960px;margin:0 auto;padding:16px 22px}
       header.bar{display:flex;justify-content:space-between;align-items:center;gap:16px}
-      .brand{margin:0;font-weight:700;letter-spacing:.01em}
+      .brand{margin:0;font-weight:700}
       .brand a{color:#fff;text-decoration:none}
-      .brand span{display:block;margin-top:2px;font-weight:400;font-size:.82rem;opacity:.88}
+      .brand span{display:block;margin-top:2px;font-weight:400;font-size:.82rem;opacity:.9}
       h1{font-size:1.25rem;margin:4px 0 0;font-weight:600}
-      header.hero{text-align:center}
+      header.hero{text-align:center;padding-top:22px;padding-bottom:22px}
       h1.slogan{font-size:clamp(1.55rem,3.5vw,2.3rem);line-height:1.4;font-weight:700;max-width:18em;margin:8px auto}
       nav{display:flex;gap:12px;align-items:center}
       nav a{color:#fff;text-decoration:none;font-weight:600}
       .tabs{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;background:#fff;border-bottom:1px solid var(--line);padding:0 22px}
-      .tabs a{color:var(--blue);padding:12px 12px;border-bottom:3px solid transparent}
-      .tabs a.on{color:var(--blue-dark);border-bottom-color:var(--blue)}
+      .tabs a{color:var(--green);padding:12px 12px;border-bottom:3px solid transparent}
+      .tabs a.on{border-bottom-color:var(--green);font-weight:700}
       .tabs form{margin-left:auto}
-      .tabs button{background:#0070c0;color:#fff;margin:8px 0}
-      a{color:#005ea8}
-      main,footer{max-width:960px;margin:0 auto;padding:8px 22px 28px}
-      button,.btn{background:#0070c0;color:#fff;border:0;border-radius:3px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
-      button:hover,.btn:hover{background:var(--blue-dark)}
+      .tabs button{background:var(--green);color:#fff;margin:8px 0}
+      a{color:var(--green)}
+      main{max-width:960px;width:100%;margin:0 auto;padding:8px 22px 28px;box-sizing:border-box;flex:1}
+      button,.btn{background:var(--green-mid);color:#fff;border:0;border-radius:2px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
+      button:hover,.btn:hover{background:var(--green)}
       button.danger{background:#c44747}
       button.danger:hover{background:#a33636}
-      nav button{background:#fff;color:var(--blue)}
+      nav button{background:#fff;color:var(--green)}
       table{border-collapse:collapse;width:100%;background:#fff}
       th,td{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
-      th{background:#e7f1f8;color:#0b4f86}
+      th{background:#f4faf6;color:var(--green)}
       form.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
       header form{display:inline}
       label{display:flex;flex-direction:column;gap:6px;font-weight:600}
       .hint{font-weight:400;color:var(--muted);font-size:.84rem}
-      input{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #b7c9da;border-radius:3px;background:#fff;color:var(--ink)}
-      input:focus{outline:2px solid #0070c0;border-color:#0070c0}
-      .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--blue);padding:18px 18px 16px;margin:16px 0;box-shadow:0 1px 2px rgba(16,42,67,.06)}
-      .card h2{margin:0 0 10px;font-size:1.05rem;color:#0b4f86}
+      input{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #c8c8c8;border-radius:2px;background:#fff;color:var(--ink)}
+      input:focus{outline:2px solid var(--green-mid);border-color:var(--green-mid)}
+      .card{background:#fff;border:1px solid #e4e4e4;padding:0 0 16px;margin:16px 0}
+      .card h2{margin:0 0 14px;padding:12px 16px;background:var(--green-mid);color:#fff;font-size:1.02rem;font-weight:600}
+      .card p,.card form,.card ul{padding:0 16px}
+      .card table{width:calc(100% - 32px);margin:0 16px}
       .login-card{max-width:420px;margin:28px auto}
       form.stack{display:flex;flex-direction:column;gap:14px}
       form.stack button{align-self:center;min-width:148px}
       .note{color:var(--muted)}
-      footer{color:#6b7c8d;font-size:.85rem}
+      footer{background:var(--green);color:#fff;font-size:.85rem;padding:14px 22px}
+      footer p{max-width:960px;margin:0 auto}
       @media (max-width:640px){header.bar{align-items:flex-start;flex-direction:column}}
     </style></head><body>
     <div class="top">${head}</div>
