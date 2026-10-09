@@ -258,7 +258,7 @@ async function operatorHome(
       <h2>মাসিক রিপোর্ট</h2>
       <form method="get" action="/op/parties" class="row">
         <label>মাস <input type="month" name="month" required></label>
-        <button>পার্টি দেখুন</button>
+        <button>Report</button>
       </form>
     </section>
     <section class="card">
@@ -515,7 +515,7 @@ function userNav(): string {
 }
 
 function opNav(): string {
-  return `<a href="/op">অপারেটর</a> <form method="post" action="/op/logout"><button>বের হন</button></form>`;
+  return `<a href="/op">অপারেটর</a> <form method="post" action="/op/logout"><button>Signout</button></form>`;
 }
 
 function note(url: URL): string {
