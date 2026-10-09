@@ -288,7 +288,7 @@ async function operatorHome(
       </form>
       <table><thead><tr><th>নাম</th><th>id</th><th>URL</th><th>এনভ</th><th>নোট</th><th></th></tr></thead><tbody>${apiRows || `<tr><td colspan="6">এখনো কোনো API নেই।</td></tr>`}</tbody></table>
     </section>`;
-  sendHtml(res, 200, page("অপারেটর", body, { nav: opNav() }));
+  sendHtml(res, 200, page("Admin", body, { nav: opNav() }));
 }
 
 async function operatorPin(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
@@ -499,9 +499,9 @@ function loginPage(msg: string | null): string {
 }
 
 function operatorLoginPage(msg: string | null, configured: boolean): string {
-  if (!configured) return page("অপারেটর", "<p>OPERATOR_PIN সেট করা নেই।</p>");
+  if (!configured) return page("Admin", "<p>OPERATOR_PIN সেট করা নেই।</p>");
   return page(
-    "অপারেটর",
+    "Admin",
     `${msg ? `<p class="note">${esc(msg)}</p>` : ""}
     <section class="card"><form method="post" action="/op/login" class="row">
       <label>পিন <input name="pin" type="password" required></label>
@@ -515,7 +515,7 @@ function userNav(): string {
 }
 
 function opNav(): string {
-  return `<a href="/op">অপারেটর</a> <form method="post" action="/op/logout"><button>Signout</button></form>`;
+  return `<a href="/op">Admin</a> <form method="post" action="/op/logout"><button>Signout</button></form>`;
 }
 
 function note(url: URL): string {
@@ -583,7 +583,7 @@ function requireUser(req: http.IncomingMessage): string {
 }
 
 function requireOperator(req: http.IncomingMessage): void {
-  if (!operatorSession(req)) throw new HttpError("অপারেটর হিসেবে ঢুকুন।", 401);
+  if (!operatorSession(req)) throw new HttpError("Admin হিসেবে ঢুকুন।", 401);
 }
 
 function operatorSession(req: http.IncomingMessage): boolean {
