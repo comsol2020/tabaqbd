@@ -12,7 +12,7 @@ import { mirrorImporter, recordDeletion, syncDeletions } from "../bot/lib/mirror
 import { applyReset, partyActivity, previewReset, resetPhrase } from "../bot/lib/month.js";
 import { htmlToPdf } from "../bot/lib/pdf.js";
 import { hashPin, importerPinMatches, setImporterPin, verifyPin } from "../bot/lib/pins.js";
-import { loadImporter, newImporter, saveImporter, type Kv } from "../bot/lib/store.js";
+import { addCustomers, loadImporter, loadSharedCustomers, newImporter, removeCustomer, saveImporter, type Kv } from "../bot/lib/store.js";
 import type { ImporterDoc, Invoice, PurchaseLine } from "../bot/lib/types.js";
 import { listUploads, pdfPageCount, saveUpload } from "../bot/lib/uploads.js";
 import { startServer } from "../dashboard/server.js";
@@ -21,6 +21,23 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
+
+test("buyer list appends, skips the same name, and can drop one", async () => {
+  const kv = memoryKv();
+  assert.equal((await addCustomers(kv, undefined, [{ name: "রহিম", address: "ঢাকা" }])).added, 1);
+  const again = await addCustomers(kv, undefined, [
+    { name: "রহিম", address: "ঢাকা" },
+    { name: "করিম", address: "চট্টগ্রাম" },
+  ]);
+  assert.equal(again.added, 1);
+  assert.equal(again.skipped, 1);
+  assert.equal((await loadSharedCustomers(kv)).length, 2);
+  await removeCustomer(kv, undefined, (await loadSharedCustomers(kv))[0]!.id);
+  assert.equal((await loadSharedCustomers(kv)).length, 1);
+  await saveImporter(kv, newImporter("0003116570701", "A"));
+  assert.equal((await addCustomers(kv, "0003116570701", [{ name: "ক", address: "খ" }])).list, "0003116570701");
+  await assert.rejects(() => addCustomers(kv, "0000000000000", [{ name: "x", address: "" }]), /No importer/);
+});
 
 function memoryKv(): Kv {
   const map = new Map<string, unknown>();
@@ -378,6 +395,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.match(customer, /name="form" value="6.1"/);
     assert.match(customer, /name="form" value="6.3"/);
     assert.match(customer, /type="month"/);
+    assert.match(await (await fetch(`${base}/op/buyers`, { headers: { cookie: opCookie } })).text(), /৬\.৩ ক্রেতা/);
     assert.match(await (await fetch(`${base}/op/monthly`, { headers: { cookie: opCookie } })).text(), /action="\/op\/parties"/);
     const parties = await (await fetch(`${base}/op/parties?month=2026-01`, { headers: { cookie: opCookie } })).text();
     assert.match(parties, /রিপোর্ট জেনারেট/);

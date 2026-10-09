@@ -11,7 +11,7 @@ import { assertMonth, monthRange, partyActivity, previewReset, applyReset } from
 import { htmlToPdf } from "../bot/lib/pdf.js";
 import { importerPinMatches, setImporterPin } from "../bot/lib/pins.js";
 import { monthlyReport, reportHtml } from "../bot/lib/report.js";
-import { listBins, loadImporter, saveImporter, type Kv } from "../bot/lib/store.js";
+import { addCustomers, listBins, loadImporter, loadSharedCustomers, removeCustomer, saveImporter, type Kv } from "../bot/lib/store.js";
 import { confirmUpload, listUploads, saveUpload, uploadFile } from "../bot/lib/uploads.js";
 import { normalizeBin } from "../bot/lib/vat.js";
 
@@ -98,6 +98,9 @@ async function handle(
   if (method === "GET" && url.pathname === "/op/manual") return operatorManualPage(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/manual") return operatorManualUpload(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/api") return operatorApiPage(req, res, ctx, url);
+  if (method === "GET" && url.pathname === "/op/buyers") return operatorBuyersPage(req, res, ctx, url);
+  if (method === "POST" && url.pathname === "/op/buyers") return operatorBuyersAdd(req, res, ctx);
+  if (method === "POST" && url.pathname === "/op/buyers/remove") return operatorBuyersRemove(req, res, ctx);
   if (method === "GET" && url.pathname === "/op/monthly") return operatorMonthlyPage(req, res, url);
   if (method === "GET" && url.pathname === "/op/parties") return operatorParties(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/report") return operatorReport(req, res, ctx, url, false);
@@ -476,6 +479,124 @@ async function operatorReset(req: http.IncomingMessage, res: http.ServerResponse
   redirect(res, "/op/reset?msg=" + encodeURIComponent(`${bin} এর ${month} মাস মুছে ফেলা হয়েছে।`));
 }
 
+async function operatorBuyersPage(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { kv: Kv },
+  url: URL,
+): Promise<void> {
+  requireOperator(req);
+  const bin = (url.searchParams.get("bin") ?? "").trim();
+  const options = await Promise.all(
+    (await listBins(ctx.kv)).map(async (item) => {
+      const name = (await loadImporter(ctx.kv, item))?.name ?? item;
+      const selected = item === bin ? " selected" : "";
+      return `<option value="${esc(item)}"${selected}>${esc(name)} — ${esc(item)}</option>`;
+    }),
+  );
+  let missing = "";
+  let customers: { id: string; name: string; address: string; bin?: string; nid?: string }[] = [];
+  if (bin) {
+    const doc = await loadImporter(ctx.kv, bin);
+    if (!doc) missing = "এই BIN-এর বই এখনো নেই। আগে একটি বিল সেভ করতে হবে।";
+    else customers = doc.customers;
+  } else {
+    customers = await loadSharedCustomers(ctx.kv);
+  }
+  const rows = customers
+    .map(
+      (row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.address)}</td><td>${esc(row.bin ?? "")}</td><td>${esc(row.nid ?? "")}</td><td>
+        <form method="post" action="/op/buyers/remove"><input type="hidden" name="for" value="${esc(bin)}"><input type="hidden" name="id" value="${esc(row.id)}"><button class="danger">সরান</button></form>
+      </td></tr>`,
+    )
+    .join("");
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>৬.৩ ক্রেতা</h2>
+      <p class="note">এই তালিকা থেকে ৬.৩ চালানের ক্রেতা বাছাই হয়। সবার তালিকা শুধু এরপর নতুন ইম্পোর্টারে বসে। পুরনো ইম্পোর্টারের জন্য তার নাম বেছে নিন।</p>
+      <form method="get" action="/op/buyers" class="row">
+        <label>তালিকা
+          <select name="bin">
+            <option value="">সবার তালিকা</option>
+            ${options.join("")}
+          </select>
+        </label>
+        <button>দেখুন</button>
+      </form>
+      ${missing ? `<p>${esc(missing)}</p>` : ""}
+    </section>
+    <section class="card">
+      <h2>একজন যোগ</h2>
+      <form method="post" action="/op/buyers" class="row">
+        <input type="hidden" name="for" value="${esc(bin)}">
+        <label>নাম <input name="name" required></label>
+        <label>ঠিকানা <input name="address"></label>
+        <label>BIN <input name="buyerBin"></label>
+        <label>NID <input name="nid"></label>
+        <button>যোগ</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>অনেকজন একসাথে</h2>
+      <p class="note">এক্সেল থেকে কপি করে আটকান। প্রতি লাইনে নাম, ঠিকানা, BIN, NID। কলাম ট্যাব বা কমা দিয়ে আলাদা।</p>
+      <form method="post" action="/op/buyers">
+        <input type="hidden" name="for" value="${esc(bin)}">
+        <label>তালিকা <textarea name="lines" rows="8" required></textarea></label>
+        <button>তালিকা যোগ</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>এখনকার তালিকা (${customers.length})</h2>
+      <table><thead><tr><th>নাম</th><th>ঠিকানা</th><th>BIN</th><th>NID</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">এখনো কোনো ক্রেতা নেই।</td></tr>`}</tbody></table>
+    </section>`;
+  sendHtml(res, 200, page("৬.৩ ক্রেতা", body, { tabs: opTabs("/op/buyers") }));
+}
+
+async function operatorBuyersAdd(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
+  requireOperator(req);
+  const form = await readForm(req);
+  const owner = (form.get("for") ?? "").trim();
+  const lines = form.get("lines");
+  const customers = lines !== null ? parseCustomerLines(lines) : [{
+    name: form.get("name") ?? "",
+    address: form.get("address") ?? "",
+    bin: form.get("buyerBin") ?? "",
+    nid: form.get("nid") ?? "",
+  }];
+  if (customers.length === 0 || customers.every((row) => !row.name.trim())) throw new HttpError("ক্রেতার নাম দিন।");
+  const result = await addCustomers(ctx.kv, owner || undefined, customers);
+  const where = result.list === "shared" ? "সবার তালিকায়" : `BIN ${result.list}-এ`;
+  redirect(res, buyersLocation(owner, `${where} ${result.added} জন যোগ হয়েছে। ${result.skipped} জন আগেই ছিল।`));
+}
+
+async function operatorBuyersRemove(req: http.IncomingMessage, res: http.ServerResponse, ctx: { kv: Kv }): Promise<void> {
+  requireOperator(req);
+  const form = await readForm(req);
+  const owner = (form.get("for") ?? "").trim();
+  await removeCustomer(ctx.kv, owner || undefined, form.get("id") ?? "");
+  redirect(res, buyersLocation(owner, "ক্রেতা সরানো হয়েছে।"));
+}
+
+function buyersLocation(owner: string, msg: string): string {
+  const bin = owner ? `?bin=${encodeURIComponent(owner)}&` : "?";
+  return `/op/buyers${bin}msg=${encodeURIComponent(msg)}`;
+}
+
+function parseCustomerLines(text: string): { name: string; address: string; bin?: string; nid?: string }[] {
+  const rows = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split(/\t|,/).map((part) => part.trim());
+    const [name, address, bin, nid] = parts;
+    if (!name) continue;
+    rows.push({ name, address: address ?? "", bin: bin || undefined, nid: nid || undefined });
+  }
+  return rows;
+}
+
 async function operatorMonthlyPage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
   requireOperator(req);
   const body = `
@@ -688,7 +809,7 @@ function userNav(): string {
 function opTabs(current: string): string {
   const item = (href: string, label: string) =>
     `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
-  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/buyers", "৬.৩ ক্রেতা")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
 }
 
 type NamedCustomer = { bin: string; name: string };
@@ -773,7 +894,8 @@ function page(title: string, body: string, opts: { nav?: string; slogan?: string
       header form{display:inline}
       label{display:flex;flex-direction:column;gap:6px;font-weight:600}
       .hint{font-weight:400;color:var(--muted);font-size:.84rem}
-      input{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #c8c8c8;border-radius:2px;background:#fff;color:var(--ink)}
+      input,textarea,select{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #c8c8c8;border-radius:2px;background:#fff;color:var(--ink)}
+      textarea{width:100%;box-sizing:border-box}
       input:focus{outline:2px solid var(--green-mid);border-color:var(--green-mid)}
       .card{background:#fff;border:1px solid #e4e4e4;padding:0 0 16px;margin:16px 0}
       .card h2{margin:0 0 14px;padding:12px 16px;background:var(--green-mid);color:#fff;font-size:1.02rem;font-weight:600}

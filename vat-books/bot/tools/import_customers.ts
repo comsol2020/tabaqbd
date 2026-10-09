@@ -1,14 +1,7 @@
 import { prompt } from "@cursor/bdk";
 import { defineTool } from "@cursor/bdk/tools";
 import { z } from "zod";
-import {
-  loadImporter,
-  loadSharedCustomers,
-  saveImporter,
-  saveSharedCustomers,
-} from "../lib/store.js";
-import type { Customer } from "../lib/types.js";
-import { customerKey, normalizeBin } from "../lib/vat.js";
+import { addCustomers } from "../lib/store.js";
 
 export default defineTool({
   description: prompt`
@@ -34,32 +27,7 @@ export default defineTool({
       .min(1),
   }),
   dryRunResult: () => ({ added: 0 }),
-  async execute({ bin: rawBin, customers }, ctx) {
-    const kv = ctx.host.kv;
-    const doc = rawBin ? await loadImporter(kv, normalizeBin(rawBin)) : undefined;
-    if (rawBin && !doc) {
-      throw new Error(`No importer ${rawBin} yet. Save its bill of entry first (that creates it).`);
-    }
-    const list: Customer[] = doc ? doc.customers : await loadSharedCustomers(kv);
-    const have = new Set(list.map((c) => c.id));
-    let added = 0;
-    for (const c of customers) {
-      const id = customerKey(c);
-      if (have.has(id)) continue;
-      have.add(id);
-      const entry: Customer = { id, name: c.name.trim(), address: c.address };
-      if (c.bin) entry.bin = c.bin;
-      if (c.nid) entry.nid = c.nid;
-      list.push(entry);
-      added += 1;
-    }
-    if (doc) await saveImporter(kv, doc);
-    else await saveSharedCustomers(kv, list);
-    return {
-      list: doc ? doc.bin : "shared",
-      added,
-      skipped: customers.length - added,
-      total: list.length,
-    };
+  async execute({ bin, customers }, ctx) {
+    return addCustomers(ctx.host.kv, bin, customers);
   },
 });

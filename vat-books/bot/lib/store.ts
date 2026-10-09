@@ -1,5 +1,6 @@
 import type { ToolContext } from "@cursor/bdk/tools";
 import type { Customer, ImporterDoc } from "./types.js";
+import { customerKey, normalizeBin } from "./vat.js";
 
 export type Kv = ToolContext["host"]["kv"];
 type JsonValue = Parameters<Kv["put"]>[1];
@@ -66,6 +67,50 @@ export async function loadSharedCustomers(kv: Kv): Promise<Customer[]> {
 
 export async function saveSharedCustomers(kv: Kv, customers: Customer[]): Promise<void> {
   await kv.put(SHARED_CUSTOMERS, customers as unknown as JsonValue);
+}
+
+export type CustomerInput = { name: string; bin?: string; nid?: string; address?: string };
+
+/** Same rules as import_customers: BIN, else NID, else name. Existing rows stay, new ones append. */
+export async function addCustomers(
+  kv: Kv,
+  rawBin: string | undefined,
+  customers: CustomerInput[],
+): Promise<{ list: string; added: number; skipped: number; total: number }> {
+  const doc = rawBin ? await loadImporter(kv, normalizeBin(rawBin)) : undefined;
+  if (rawBin && !doc) {
+    throw new Error(`No importer ${rawBin} yet. Save its bill of entry first (that creates it).`);
+  }
+  const list: Customer[] = doc ? doc.customers : await loadSharedCustomers(kv);
+  const have = new Set(list.map((c) => c.id));
+  let added = 0;
+  for (const c of customers) {
+    const name = c.name.trim();
+    if (!name) continue;
+    const id = customerKey({ name, bin: c.bin, nid: c.nid });
+    if (have.has(id)) continue;
+    have.add(id);
+    const entry: Customer = { id, name, address: (c.address ?? "").trim() };
+    if (c.bin?.trim()) entry.bin = c.bin.trim();
+    if (c.nid?.trim()) entry.nid = c.nid.trim();
+    list.push(entry);
+    added += 1;
+  }
+  if (doc) await saveImporter(kv, doc);
+  else await saveSharedCustomers(kv, list);
+  return { list: doc ? doc.bin : "shared", added, skipped: customers.length - added, total: list.length };
+}
+
+export async function removeCustomer(kv: Kv, rawBin: string | undefined, id: string): Promise<void> {
+  if (rawBin) {
+    const doc = await loadImporter(kv, normalizeBin(rawBin));
+    if (!doc) throw new Error(`No importer ${rawBin} yet. Save its bill of entry first (that creates it).`);
+    doc.customers = doc.customers.filter((c) => c.id !== id);
+    await saveImporter(kv, doc);
+    return;
+  }
+  const list = await loadSharedCustomers(kv);
+  await saveSharedCustomers(kv, list.filter((c) => c.id !== id));
 }
 
 export async function createImporter(
