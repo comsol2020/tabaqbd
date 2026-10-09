@@ -516,29 +516,34 @@ function page(title: string, body: string, opts: { nav?: string } = {}): string 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;background:#f4f1ea;color:#1c1915;min-height:100vh}
+      body{font-family:"Noto Sans Bengali","Nirmala UI","Vrinda",sans-serif;margin:0;color:#16324a;min-height:100vh;background:linear-gradient(180deg,#ffffff 0%,#f5fbff 42%,#e7f4fd 100%)}
+      .accent{height:4px;background:linear-gradient(90deg,#9fd8ff,#1c8ad6 48%,#d7f0ff)}
+      .bar{background:rgba(255,255,255,.94);border-bottom:1px solid #d7ebf8;box-shadow:0 8px 28px rgba(28,138,214,.06)}
       header,main,footer{max-width:920px;margin:0 auto;padding:16px 20px}
-      header{display:flex;justify-content:space-between;align-items:center;gap:16px}
-      .brand{margin:0;font-weight:700}
-      .brand a{color:#1f4b3a;text-decoration:none}
-      h1{font-size:1.35rem;margin:2px 0 0;font-weight:600}
+      header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:18px;padding-bottom:18px}
+      .brand{margin:0;font-weight:700;letter-spacing:.01em}
+      .brand a{color:#1a8cd8;text-decoration:none}
+      h1{font-size:1.35rem;margin:2px 0 0;font-weight:600;color:#0f4c75}
       nav{display:flex;gap:12px;align-items:center}
-      a{color:#1f4b3a}
-      button,.btn{background:#1f4b3a;color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
-      button.danger{background:#8c2f2f}
-      table{border-collapse:collapse;width:100%;background:#fff}
-      th,td{border:1px solid #e4dfd6;padding:8px;text-align:left;vertical-align:top}
-      th{background:#efeae2}
-      form.row,header form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+      nav a{color:#1a8cd8;text-decoration:none;font-weight:600}
+      a{color:#1577be}
+      button,.btn{background:linear-gradient(180deg,#49b0ef,#1c8ad6);color:#fff;border:0;border-radius:10px;padding:9px 16px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block;box-shadow:0 6px 16px rgba(28,138,214,.22)}
+      button.danger{background:linear-gradient(180deg,#e07a7a,#c45353);box-shadow:0 6px 16px rgba(196,83,83,.18)}
+      table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden}
+      th,td{border:1px solid #e3f2fb;padding:8px;text-align:left;vertical-align:top}
+      th{background:#eef7fd;color:#0e6eaf}
+      form.row,header form{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
       header form{display:inline}
-      label{display:flex;flex-direction:column;gap:4px;font-size:.92rem}
-      input{font:inherit;padding:8px;border:1px solid #ccc;border-radius:6px;background:#fff}
-      .card{background:#fff;border-radius:10px;padding:16px;margin:16px 0}
-      .note{color:#5c564c}
-      footer{color:#5c564c;font-size:.85rem}
+      label{display:flex;flex-direction:column;gap:4px;font-size:.92rem;color:#3d6278}
+      input{font:inherit;padding:9px 10px;border:1px solid #cfe6f6;border-radius:10px;background:#fff;color:#16324a}
+      input:focus{outline:3px solid #d7efff;border-color:#7ec8f0}
+      .card{background:#fff;border:1px solid #e4f2fb;border-radius:16px;padding:18px;margin:18px 0;box-shadow:0 12px 32px rgba(28,138,214,.08)}
+      .note{color:#5d7a90}
+      footer{color:#6b8aa0;font-size:.85rem}
       @media (max-width:640px){header{align-items:flex-start;flex-direction:column}}
     </style></head><body>
-    <header><div><p class="brand"><a href="/">osbdsyl.online</a></p><h1>${esc(title)}</h1></div><nav>${opts.nav ?? `<a href="/op">অপারেটর</a>`}</nav></header>
+    <div class="accent"></div>
+    <div class="bar"><header><div><p class="brand"><a href="/">osbdsyl.online</a></p><h1>${esc(title)}</h1></div><nav>${opts.nav ?? `<a href="/op">অপারেটর</a>`}</nav></header></div>
     <main>${body}</main>
     <footer><p>মূসক ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্ট। পোর্টালে কিছু পাঠায় না — ফাইল আপনি ডাউনলোড করবেন।</p></footer>
     </body></html>`;
