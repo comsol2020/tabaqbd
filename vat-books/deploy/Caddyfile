@@ -1,4 +1,8 @@
 # osbdsyl.online — HTTPS in front of the dashboard on 127.0.0.1:8080
+{
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
 osbdsyl.online {
 	encode gzip
 	header {
