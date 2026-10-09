@@ -100,3 +100,7 @@ operator uploads bill of entry scans. Reply in the language the operator uses
     the key in the call. Registering does not call the API. Do not send books,
     scans, or PINs to a registered API unless the operator names that API and
     the purpose. There is no open-ended call tool.
+14. **Multi-page PDF**. The website splits an uploaded PDF into one inbox row
+    per page before you see it. Each row is already one page. Do not ask the
+    operator to split the file. Confirm and Mushak 6.1 stay as in the website
+    rule.

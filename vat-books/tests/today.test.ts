@@ -14,7 +14,8 @@ import { htmlToPdf } from "../bot/lib/pdf.js";
 import { hashPin, importerPinMatches, setImporterPin, verifyPin } from "../bot/lib/pins.js";
 import { loadImporter, newImporter, saveImporter, type Kv } from "../bot/lib/store.js";
 import type { ImporterDoc, Invoice, PurchaseLine } from "../bot/lib/types.js";
-import { listUploads, pdfPageCount, saveUpload } from "../bot/lib/uploads.js";
+import { singlePages } from "../bot/lib/splitpdf.js";
+import { listUploads, pdfPageCount, saveUpload, uploadFile } from "../bot/lib/uploads.js";
 import { startServer } from "../dashboard/server.js";
 
 const PNG = Buffer.from(
@@ -262,10 +263,14 @@ test("upload accepts one image and refuses a multi-page PDF", async () => {
   const kv = openDisk(dir);
   const saved = await saveUpload(kv, dir, { bin: "1234567890123", fileName: "page.png", contentType: "image/png", data: PNG });
   assert.equal(saved.status, "pending");
+  const whole = twoPagePdf();
   await assert.rejects(
-    () => saveUpload(kv, dir, { bin: "1234567890123", fileName: "two.pdf", contentType: "application/pdf", data: twoPagePdf() }),
+    () => saveUpload(kv, dir, { bin: "1234567890123", fileName: "two.pdf", contentType: "application/pdf", data: whole }),
     /এক পাতা/,
   );
+  const pages = await singlePages("application/pdf", whole);
+  assert.equal(pages.length, 2);
+  for (const page of pages) assert.equal(pdfPageCount(page.data), 1);
   assert.equal((await listUploads(kv)).length, 1);
 });
 
@@ -307,12 +312,21 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.equal(pending[0]?.status, "pending");
     assert.equal(await loadImporter(disk, "0003116570701"), undefined);
 
-    const bad = new FormData();
-    bad.set("page", new Blob([new Uint8Array(twoPagePdf())], { type: "application/pdf" }), "two.pdf");
-    const rejected = await fetch(`${base}/upload`, { method: "POST", headers: { cookie: userCookie }, body: bad });
-    assert.equal(rejected.status, 400);
-    assert.match(await rejected.text(), /এক পাতা/);
-    assert.equal((await listUploads(disk)).length, 1);
+    const many = new FormData();
+    many.set("page", new Blob([new Uint8Array(twoPagePdf())], { type: "application/pdf" }), "two.pdf");
+    const split = await fetch(`${base}/upload`, { method: "POST", headers: { cookie: userCookie }, body: many, redirect: "manual" });
+    assert.equal(split.status, 303);
+    const rows = await listUploads(disk);
+    assert.equal(rows.length, 3);
+    const pdfs = rows.filter((row) => row.fileName.endsWith(".pdf"));
+    assert.equal(pdfs.length, 2);
+    for (const row of pdfs) {
+      assert.equal(row.status, "pending");
+      assert.equal(pdfPageCount(await fs.readFile(uploadFile(dir, row.id))), 1);
+    }
+    assert.equal(await loadImporter(disk, "0003116570701"), undefined);
+    assert.match(decodeURIComponent(split.headers.get("location") ?? ""), /আলাদা এন্ট্রি/);
+    assert.match(await (await fetch(`${base}/app`, { headers: { cookie: userCookie } })).text(), /two-p01\.pdf/);
 
     const confirmed = await fetch(`${base}/op/upload/confirm`, {
       method: "POST",
@@ -321,7 +335,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
       redirect: "manual",
     });
     assert.equal(confirmed.status, 303);
-    assert.equal((await listUploads(disk))[0]?.status, "confirmed");
+    assert.equal((await listUploads(disk)).find((row) => row.id === pending[0]!.id)?.status, "confirmed");
     assert.equal(await loadImporter(disk, "0003116570701"), undefined);
 
     const refused = await fetch(`${base}/op/api`, {

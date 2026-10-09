@@ -12,6 +12,7 @@ import { htmlToPdf } from "../bot/lib/pdf.js";
 import { importerPinMatches, setImporterPin } from "../bot/lib/pins.js";
 import { monthlyReport, reportHtml } from "../bot/lib/report.js";
 import { listBins, loadImporter, saveImporter, type Kv } from "../bot/lib/store.js";
+import { pageFileName, singlePages } from "../bot/lib/splitpdf.js";
 import { confirmUpload, listUploads, saveUpload, uploadFile } from "../bot/lib/uploads.js";
 import { normalizeBin } from "../bot/lib/vat.js";
 
@@ -158,7 +159,7 @@ async function userHome(
     ${note(url)}
     <section class="card">
       <h2>আপলোড</h2>
-      <p class="note">এক পাতা করে দিন। কনফার্মের পর খাতায় যাবে।</p>
+      <p class="note">পিডিএফ দিলে এক পাতা করে এন্ট্রি হবে। কনফার্মের পর খাতায় যাবে।</p>
       <form method="post" action="/upload" enctype="multipart/form-data">
         <input type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" required>
         <button>আপলোড</button>
@@ -186,9 +187,24 @@ async function userUpload(req: http.IncomingMessage, res: http.ServerResponse, c
   const bin = requireUser(req);
   const file = await readSingleFile(req);
   const type = sniff(file.data);
-  if (!type) throw new HttpError("শুধু JPG, PNG, WEBP বা এক পাতার PDF দেওয়া যাবে।");
-  await saveUpload(ctx.kv, ctx.dataDir, { bin, fileName: safeName(file.filename), contentType: type, data: file.data });
-  redirect(res, "/app?msg=" + encodeURIComponent("আপলোড হয়েছে। কনফার্মের পর খাতায় যাবে।"));
+  if (!type) throw new HttpError("শুধু JPG, PNG, WEBP বা PDF দেওয়া যাবে।");
+  const pages = await singlePages(type, file.data);
+  const base = safeName(file.filename);
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i];
+    if (!page) continue;
+    await saveUpload(ctx.kv, ctx.dataDir, {
+      bin,
+      fileName: pageFileName(base, i + 1, pages.length),
+      contentType: page.contentType,
+      data: page.data,
+    });
+  }
+  const msg =
+    pages.length === 1
+      ? "আপলোড হয়েছে। কনফার্মের পর খাতায় যাবে।"
+      : `${pages.length} পাতা আলাদা এন্ট্রি হয়েছে। কনফার্মের পর খাতায় যাবে।`;
+  redirect(res, "/app?msg=" + encodeURIComponent(msg));
 }
 
 async function userDownload(
