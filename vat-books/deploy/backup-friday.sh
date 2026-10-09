@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# শুক্রবার /var/lib/osbdsyl জিপ করে একই ফাইলে লেখে।
+# /var/lib/osbdsyl জিপ করে একই ফাইলে লেখে।
 # rclone-এ gdrive: রিমোট থাকলে Google Drive-এ osbdsyl-backup.zip রিরাইট হয়।
 # /etc/osbdsyl.env এই জিপে যায় না।
+# সময়সূচি: শুক্রবার ০২:০০ Asia/Dhaka (deploy/osbdsyl-backup.cron)।
 set -euo pipefail
 
 DATA_DIR=/var/lib/osbdsyl

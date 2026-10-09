@@ -1,0 +1,3 @@
+# শুক্রবার ০২:০০ Asia/Dhaka। সার্ভারের ঘড়ি অন্য জোনে থাকতে পারে, তাই প্রতি ঘণ্টায় ঢাকার দিন ও ঘণ্টা দেখে।
+SHELL=/bin/bash
+0 * * * * root TZ=Asia/Dhaka bash -c 'test "$(date +\%u-\%H)" = "5-02" && /usr/bin/systemctl start --no-block osbdsyl-backup.service'

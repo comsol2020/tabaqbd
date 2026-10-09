@@ -112,11 +112,11 @@ fi
 install -m 644 "$SRC/deploy/osbdsyl.service" /etc/systemd/system/osbdsyl.service
 install -m 755 "$SRC/deploy/backup-friday.sh" /usr/local/sbin/osbdsyl-backup
 install -m 644 "$SRC/deploy/osbdsyl-backup.service" /etc/systemd/system/osbdsyl-backup.service
-install -m 644 "$SRC/deploy/osbdsyl-backup.timer" /etc/systemd/system/osbdsyl-backup.timer
+install -m 644 "$SRC/deploy/osbdsyl-backup.cron" /etc/cron.d/osbdsyl-backup
 systemctl daemon-reload
 systemctl enable osbdsyl
 systemctl restart osbdsyl
-systemctl enable --now osbdsyl-backup.timer
+systemctl disable --now osbdsyl-backup.timer 2>/dev/null || true
 if ! command -v rclone >/dev/null 2>&1; then
   apt-get install -y --no-install-recommends rclone || echo "rclone ইনস্টল হয়নি। লোকাল ব্যাকআপ চলবে, ড্রাইভ পরে।"
 fi
