@@ -352,6 +352,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.match(submissions, /অপেক্ষমাণ/);
     const reportPage = await (await fetch(`${base}/app/report`, { headers: { cookie: userCookie } })).text();
     assert.match(reportPage, /মাসিক রিপোর্ট/);
+    assert.match(reportPage, /value="4.3"/);
     assert.ok(reportPage.indexOf('type="month"') < reportPage.indexOf("৬.১"));
 
     const disk = openDisk(dir);
@@ -402,6 +403,7 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.match(adminHome, /href="\/op\/profile"/);
     const customer = await (await fetch(`${base}/op/customer?bin=0003116570701`, { headers: { cookie: opCookie } })).text();
     assert.match(customer, /Aritree/);
+    assert.match(customer, /name="form" value="4.3"/);
     assert.match(customer, /name="form" value="6.1"/);
     assert.match(customer, /name="form" value="6.3"/);
     assert.match(customer, /type="month"/);
@@ -439,6 +441,9 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     assert.equal(left?.purchases.length, 1);
     assert.equal(left?.purchases[0]?.boeNo, "C-88");
 
+    const form43 = await fetch(`${base}/download?form=4.3`, { headers: { cookie: userCookie } });
+    assert.equal(form43.status, 200);
+    assert.equal(Buffer.from(await form43.arrayBuffer()).subarray(0, 4).toString(), "%PDF");
     const pdf = await fetch(`${base}/download?form=6.1&month=2026-03`, { headers: { cookie: userCookie } });
     assert.equal(pdf.status, 200);
     assert.equal(pdf.headers.get("content-type"), "application/pdf");

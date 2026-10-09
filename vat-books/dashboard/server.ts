@@ -269,13 +269,14 @@ async function userReportPage(req: http.IncomingMessage, res: http.ServerRespons
       <form method="get" action="/download" class="report">
         <label>মাস <input type="month" name="month" required></label>
         <div class="row">
+          <button name="form" value="4.3" formnovalidate>৪.৩</button>
           <button name="form" value="6.1">৬.১</button>
           <button name="form" value="6.2">৬.২</button>
           <button name="form" value="6.3">৬.৩</button>
           <button name="form" value="report">মাসিক রিপোর্ট</button>
         </div>
       </form>
-      <p class="note">আগে মাস বেছে নিন। তারপর ৬.১, ৬.২, ৬.৩ বা মাসিক রিপোর্টের পিডিএফ নামবে।</p>
+      <p class="note">৪.৩ মাস চায় না। ৬.১, ৬.২, ৬.৩ ও মাসিক রিপোর্টের আগে মাস বেছে নিন।</p>
     </section>`;
   sendHtml(res, 200, userPage("Book of Mushak", body, "/app/report"));
 }
@@ -339,7 +340,7 @@ async function userDownload(
   const doc = await loadImporter(ctx.kv, bin);
   const html = await bookHtml(doc, bin, month, form);
   const pdf = await htmlToPdf(html);
-  const name = form === "report" ? `report-${month}.pdf` : `mushak-${form}-${month}.pdf`;
+  const name = form === "report" ? `report-${month}.pdf` : form === "4.3" ? "mushak-4.3.pdf" : `mushak-${form}-${month}.pdf`;
   sendPdf(res, pdf, name);
 }
 
@@ -388,6 +389,7 @@ async function operatorCustomer(
       <form method="get" action="/op/book" class="row">
         <input type="hidden" name="bin" value="${esc(row.bin)}">
         <label>মাস <input type="month" name="month" required></label>
+        <button name="form" value="4.3" formnovalidate>৪.৩</button>
         <button name="form" value="6.1">৬.১</button>
         <button name="form" value="6.2">৬.২</button>
         <button name="form" value="6.3">৬.৩</button>
@@ -409,7 +411,7 @@ async function operatorBook(
   const form = url.searchParams.get("form") ?? "";
   const html = await bookHtml(await loadImporter(ctx.kv, bin), bin, month, form);
   const pdf = await htmlToPdf(html);
-  const name = form === "report" ? `report-${bin}-${month}.pdf` : `mushak-${form}-${month}.pdf`;
+  const name = form === "report" ? `report-${bin}-${month}.pdf` : form === "4.3" ? `mushak-4.3-${bin}.pdf` : `mushak-${form}-${month}.pdf`;
   sendPdf(res, pdf, name);
 }
 
@@ -907,9 +909,14 @@ async function bookHtml(
   month: string,
   form: string,
 ): Promise<string> {
+  if (form === "4.3") {
+    if (!doc) return emptyBook(bin, "", "এখনো ৪.৩ ঘোষণা নেই।");
+    return toHtml(buildBook(doc, "4.3"));
+  }
+  if (!month) throw new HttpError("মাস বেছে নিন।");
   assertMonth(month);
   if (form !== "report" && form !== "6.1" && form !== "6.2" && form !== "6.3") {
-    throw new HttpError("বই ৬.১, ৬.২, ৬.৩ বা রিপোর্ট।");
+    throw new HttpError("বই ৪.৩, ৬.১, ৬.২, ৬.৩ বা রিপোর্ট।");
   }
   if (!doc) return emptyBook(bin, month);
   if (form === "report") return reportHtml(monthlyReport(doc, month));
@@ -944,8 +951,9 @@ function statusText(status: string): string {
   return "খাতায় আছে";
 }
 
-function emptyBook(bin: string, month: string): string {
-  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><title>খালি</title></head><body><p>BIN ${esc(bin)} — ${esc(month)} মাসে এখনো কোনো হিসাব নেই।</p></body></html>`;
+function emptyBook(bin: string, month: string, message = ""): string {
+  const text = message || `${month} মাসে এখনো কোনো হিসাব নেই।`;
+  return `<!doctype html><html lang="bn"><head><meta charset="utf-8"><title>খালি</title></head><body><p>BIN ${esc(bin)} — ${esc(text)}</p></body></html>`;
 }
 
 function withBar(html: string, href: string): string {
