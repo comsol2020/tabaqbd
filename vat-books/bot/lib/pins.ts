@@ -32,6 +32,40 @@ export async function setImporterPin(kv: Kv, binInput: string, pin: string): Pro
   return bin;
 }
 
+const OPERATOR_KEY = "operator:pin";
+
+export function hashSecret(secret: string): { salt: string; hash: string } {
+  if (secret.length < 4 || secret.length > 80) throw new Error("পাসওয়ার্ড ৪ থেকে ৮০ অক্ষরের হতে হবে।");
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(secret, salt, 32).toString("hex");
+  return { salt, hash };
+}
+
+function sameSecret(a: string, b: string): boolean {
+  const left = crypto.createHash("sha256").update(a).digest();
+  const right = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(left, right);
+}
+
+export async function operatorPinConfigured(kv: Kv, envPin: string): Promise<boolean> {
+  if (envPin) return true;
+  const stored = await kv.get(OPERATOR_KEY);
+  return !!stored && typeof stored === "object" && !Array.isArray(stored);
+}
+
+export async function operatorPinMatches(kv: Kv, pin: string, envPin: string): Promise<boolean> {
+  const stored = await kv.get(OPERATOR_KEY);
+  if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+    return verifyPin(pin, stored as { salt?: unknown; hash?: unknown });
+  }
+  if (!envPin) return false;
+  return sameSecret(pin, envPin);
+}
+
+export async function setOperatorPin(kv: Kv, next: string): Promise<void> {
+  await kv.put(OPERATOR_KEY, asJson(hashSecret(next)));
+}
+
 export async function importerPinMatches(kv: Kv, binInput: string, pin: string): Promise<string | undefined> {
   let bin: string;
   try {

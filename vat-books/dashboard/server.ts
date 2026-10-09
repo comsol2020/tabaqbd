@@ -9,7 +9,7 @@ import { type FormId, buildBook, toHtml } from "../bot/lib/forms.js";
 import { recordDeletion } from "../bot/lib/mirror.js";
 import { assertMonth, monthRange, partyActivity, previewReset, applyReset } from "../bot/lib/month.js";
 import { htmlToPdf } from "../bot/lib/pdf.js";
-import { importerPinMatches, setImporterPin } from "../bot/lib/pins.js";
+import { importerPinMatches, operatorPinConfigured, operatorPinMatches, setImporterPin, setOperatorPin } from "../bot/lib/pins.js";
 import { monthlyReport, reportHtml } from "../bot/lib/report.js";
 import { addCustomers, listBins, loadImporter, loadSharedCustomers, removeCustomer, saveImporter, type Kv } from "../bot/lib/store.js";
 import { confirmUpload, listUploads, saveUpload, uploadFile } from "../bot/lib/uploads.js";
@@ -89,6 +89,8 @@ async function handle(
   if (method === "GET" && url.pathname === "/op/customer") return operatorCustomer(req, res, ctx, url);
   if (method === "GET" && url.pathname === "/op/book") return operatorBook(req, res, ctx, url);
   if (method === "POST" && url.pathname === "/op/login") return operatorLogin(req, res, ctx);
+  if (method === "GET" && url.pathname === "/op/profile") return operatorProfilePage(req, res, url);
+  if (method === "POST" && url.pathname === "/op/profile") return operatorProfileSave(req, res, ctx);
   if (method === "POST" && url.pathname === "/op/logout") return logout(res, "opid", "/op");
   if (method === "GET" && url.pathname === "/op/pin") return operatorPinPage(req, res, url);
   if (method === "POST" && url.pathname === "/op/pin") return operatorPin(req, res, ctx);
@@ -132,19 +134,52 @@ async function userLogin(req: http.IncomingMessage, res: http.ServerResponse, ct
 async function operatorLogin(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  ctx: { operatorPin: string },
+  ctx: { operatorPin: string; kv: Kv },
 ): Promise<void> {
-  if (!ctx.operatorPin) throw new HttpError("OPERATOR_PIN সেট করা নেই।");
+  if (!(await operatorPinConfigured(ctx.kv, ctx.operatorPin))) throw new HttpError("OPERATOR_PIN সেট করা নেই।");
   const form = await readForm(req);
   const key = `op|${clientIp(req)}`;
   if (locked(key)) throw new HttpError("অনেকবার ভুল হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।", 429);
-  if (!sameText(form.get("pin") ?? "", ctx.operatorPin)) {
+  if (!(await operatorPinMatches(ctx.kv, form.get("pin") ?? "", ctx.operatorPin))) {
     markFail(key);
-    redirect(res, "/op?msg=" + encodeURIComponent("পিন মিলছে না।"));
+    redirect(res, "/op?msg=" + encodeURIComponent("পাসওয়ার্ড মিলছে না।"));
     return;
   }
   clearFail(key);
   redirect(res, "/op", { opid: startSession({ kind: "operator", exp: Date.now() + DAY_MS }) });
+}
+
+async function operatorProfilePage(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  requireOperator(req);
+  const body = `
+    ${note(url)}
+    <section class="card">
+      <h2>প্রোফাইল</h2>
+      <p class="note">Admin পাসওয়ার্ড এখান থেকে বদলান। ৪ থেকে ৮০ অক্ষর।</p>
+      <form method="post" action="/op/profile" class="row">
+        <label>এখনকার পাসওয়ার্ড <input name="current" type="password" required autocomplete="current-password"></label>
+        <label>নতুন পাসওয়ার্ড <input name="next" type="password" required minlength="4" maxlength="80" autocomplete="new-password"></label>
+        <label>আবার <input name="next2" type="password" required minlength="4" maxlength="80" autocomplete="new-password"></label>
+        <button>পাসওয়ার্ড বদলান</button>
+      </form>
+    </section>`;
+  sendHtml(res, 200, page("প্রোফাইল", body, { tabs: opTabs("/op/profile") }));
+}
+
+async function operatorProfileSave(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: { operatorPin: string; kv: Kv },
+): Promise<void> {
+  requireOperator(req);
+  const form = await readForm(req);
+  const next = form.get("next") ?? "";
+  if (next !== (form.get("next2") ?? "")) throw new HttpError("দুইবারের পাসওয়ার্ড এক নয়।");
+  if (!(await operatorPinMatches(ctx.kv, form.get("current") ?? "", ctx.operatorPin))) {
+    throw new HttpError("এখনকার পাসওয়ার্ড মিলছে না।");
+  }
+  await setOperatorPin(ctx.kv, next);
+  redirect(res, "/op/profile?msg=" + encodeURIComponent("পাসওয়ার্ড বদলেছে।"));
 }
 
 function logout(res: http.ServerResponse, cookie: string, to: string): void {
@@ -230,7 +265,9 @@ async function operatorHome(
   ctx: { operatorPin: string; kv: Kv },
   url: URL,
 ): Promise<void> {
-  if (!operatorSession(req)) return sendHtml(res, 200, operatorLoginPage(url.searchParams.get("msg"), ctx.operatorPin.length > 0));
+  if (!operatorSession(req)) {
+    return sendHtml(res, 200, operatorLoginPage(url.searchParams.get("msg"), await operatorPinConfigured(ctx.kv, ctx.operatorPin)));
+  }
   const rows = await customerRows(ctx.kv);
   const bodyRows = rows
     .map(
@@ -796,7 +833,7 @@ function operatorLoginPage(msg: string | null, configured: boolean): string {
     "Admin",
     `${msg ? `<p class="note">${esc(msg)}</p>` : ""}
     <section class="card"><form method="post" action="/op/login" class="row">
-      <label>পিন <input name="pin" type="password" required></label>
+      <label>পাসওয়ার্ড <input name="pin" type="password" required></label>
       <button>প্রবেশ</button>
     </form></section>`,
   );
@@ -809,7 +846,7 @@ function userNav(): string {
 function opTabs(current: string): string {
   const item = (href: string, label: string) =>
     `<a href="${href}"${current === href ? ' class="on"' : ""}>${label}</a>`;
-  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/buyers", "৬.৩ ক্রেতা")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
+  return `<nav class="tabs">${item("/op", "কাস্টমার")}${item("/op/buyers", "৬.৩ ক্রেতা")}${item("/op/monthly", "Report")}${item("/op/reset", "মাস্টার রিসেট")}${item("/op/uploads", "আপলোড")}${item("/op/manual", "ম্যানুয়াল এন্ট্রি")}${item("/op/pin", "ইউজার পিন")}${item("/op/api", "API")}${item("/op/profile", "প্রোফাইল")}<form method="post" action="/op/logout"><button>Signout</button></form></nav>`;
 }
 
 type NamedCustomer = { bin: string; name: string };

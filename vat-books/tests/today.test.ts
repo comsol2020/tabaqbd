@@ -389,7 +389,9 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
       line({ boeNo: "C-88", boeDate: "2026-03-02", boeKey: "C-88|2026-03-02", lineId: "C-88|2026-03-02#1", serial: 2 }),
     );
     await saveImporter(disk, doc);
-    assert.match(await (await fetch(`${base}/op`, { headers: { cookie: opCookie } })).text(), /Aritree/);
+    const adminHome = await (await fetch(`${base}/op`, { headers: { cookie: opCookie } })).text();
+    assert.match(adminHome, /Aritree/);
+    assert.match(adminHome, /href="\/op\/profile"/);
     const customer = await (await fetch(`${base}/op/customer?bin=0003116570701`, { headers: { cookie: opCookie } })).text();
     assert.match(customer, /Aritree/);
     assert.match(customer, /name="form" value="6.1"/);
@@ -435,6 +437,63 @@ test("dashboard: pin, one page, report button, confirmed reset, API", { timeout:
     const bytes = Buffer.from(await pdf.arrayBuffer());
     assert.equal(bytes.subarray(0, 4).toString(), "%PDF");
     assert.equal((await fetch(`${base}/op/parties?month=2026-03`)).status, 401);
+  } finally {
+    await started.close();
+  }
+});
+
+test("admin changes the operator password from the profile page", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "vatprofile-"));
+  const started = await startServer({ port: 0, host: "127.0.0.1", dataDir: dir, operatorPin: "2468" });
+  const base = `http://127.0.0.1:${started.port}`;
+  try {
+    const first = await fetch(`${base}/op/login`, {
+      method: "POST",
+      body: new URLSearchParams({ pin: "2468" }),
+      redirect: "manual",
+    });
+    assert.equal(first.status, 303);
+    const cookie = cookieOf(first);
+    const page = await (await fetch(`${base}/op/profile`, { headers: { cookie } })).text();
+    assert.match(page, /প্রোফাইল/);
+    assert.match(page, /action="\/op\/profile"/);
+    const mismatch = await fetch(`${base}/op/profile`, {
+      method: "POST",
+      headers: { cookie },
+      body: new URLSearchParams({ current: "2468", next: "new-pass", next2: "other" }),
+    });
+    assert.equal(mismatch.status, 400);
+    assert.match(await mismatch.text(), /দুইবারের পাসওয়ার্ড এক নয়/);
+    const wrong = await fetch(`${base}/op/profile`, {
+      method: "POST",
+      headers: { cookie },
+      body: new URLSearchParams({ current: "0000", next: "new-pass", next2: "new-pass" }),
+    });
+    assert.equal(wrong.status, 400);
+    assert.match(await wrong.text(), /এখনকার পাসওয়ার্ড মিলছে না/);
+    const saved = await fetch(`${base}/op/profile`, {
+      method: "POST",
+      headers: { cookie },
+      body: new URLSearchParams({ current: "2468", next: "new-pass", next2: "new-pass" }),
+      redirect: "manual",
+    });
+    assert.equal(saved.status, 303);
+    assert.match(decodeURIComponent(saved.headers.get("location") ?? ""), /পাসওয়ার্ড বদলেছে/);
+    const oldPin = await fetch(`${base}/op/login`, {
+      method: "POST",
+      body: new URLSearchParams({ pin: "2468" }),
+      redirect: "manual",
+    });
+    assert.match(decodeURIComponent(oldPin.headers.get("location") ?? ""), /পাসওয়ার্ড মিলছে না/);
+    const fresh = await fetch(`${base}/op/login`, {
+      method: "POST",
+      body: new URLSearchParams({ pin: "new-pass" }),
+      redirect: "manual",
+    });
+    assert.equal(fresh.status, 303);
+    assert.equal(new URL(fresh.headers.get("location") ?? "/", base).pathname, "/op");
+    const profile = await (await fetch(`${base}/op/profile`, { headers: { cookie: cookieOf(fresh) } })).text();
+    assert.match(profile, /পাসওয়ার্ড বদলান/);
   } finally {
     await started.close();
   }

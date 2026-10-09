@@ -1,0 +1,6 @@
+[Unit]
+Description=Backup osbdsyl books and rewrite the Google Drive copy
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/osbdsyl-backup

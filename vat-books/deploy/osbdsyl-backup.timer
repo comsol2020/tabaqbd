@@ -1,0 +1,10 @@
+[Unit]
+Description=Friday 02:00 Asia/Dhaka backup of osbdsyl
+
+[Timer]
+OnCalendar=Fri *-*-* 02:00:00
+Timezone=Asia/Dhaka
+Persistent=true
+
+[Install]
+WantedBy=timers.target
