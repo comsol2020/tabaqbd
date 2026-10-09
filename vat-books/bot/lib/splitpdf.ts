@@ -29,9 +29,13 @@ export async function singlePages(contentType: string, data: Buffer): Promise<Up
   return pages;
 }
 
-export function pageFileName(name: string, index: number, count: number): string {
-  if (count === 1) return name;
-  const stem = name.replace(/\.pdf$/i, "").replace(/\.+$/, "") || "page";
-  const suffix = `-p${String(index).padStart(2, "0")}.pdf`;
+export function pageFileName(name: string, index: number, count: number, contentType = "application/pdf"): string {
+  const ext = contentType === "image/jpeg" ? "jpg" : contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "pdf";
+  const stem = name.replace(/\.[^.]+$/, "").replace(/\.+$/, "") || "page";
+  if (count === 1) {
+    if (name.toLowerCase().endsWith(`.${ext}`)) return name.slice(0, 80);
+    return `${stem}.${ext}`.slice(0, 80);
+  }
+  const suffix = `-p${String(index).padStart(2, "0")}.${ext}`;
   return `${stem.slice(0, Math.max(1, 80 - suffix.length))}${suffix}`;
 }

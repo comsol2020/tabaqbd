@@ -104,3 +104,6 @@ operator uploads bill of entry scans. Reply in the language the operator uses
     per page before you see it. Each row is already one page. Do not ask the
     operator to split the file. Confirm and Mushak 6.1 stay as in the website
     rule.
+15. **Large upload**. A website file over 8MB is reduced to a smaller JPEG
+    per page before it is stored, up to a 40MB upload. Each row is still one
+    page. Confirm and Mushak 6.1 stay as in the website rule.

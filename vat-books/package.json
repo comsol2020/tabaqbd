@@ -11,7 +11,10 @@
   },
   "dependencies": {
     "@cursor/bdk": "^0.2.21",
+    "@napi-rs/canvas": "^0.1.100",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
+    "sharp": "^0.34.5",
     "zod": "^3.25.0"
   },
   "devDependencies": {

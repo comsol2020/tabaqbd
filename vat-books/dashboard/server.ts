@@ -12,7 +12,8 @@ import { htmlToPdf } from "../bot/lib/pdf.js";
 import { importerPinMatches, setImporterPin } from "../bot/lib/pins.js";
 import { monthlyReport, reportHtml } from "../bot/lib/report.js";
 import { listBins, loadImporter, saveImporter, type Kv } from "../bot/lib/store.js";
-import { pageFileName, singlePages } from "../bot/lib/splitpdf.js";
+import { prepareUpload } from "../bot/lib/shrink.js";
+import { pageFileName } from "../bot/lib/splitpdf.js";
 import { confirmUpload, listUploads, saveUpload, uploadFile } from "../bot/lib/uploads.js";
 import { normalizeBin } from "../bot/lib/vat.js";
 
@@ -23,6 +24,7 @@ type Session =
 const sessions = new Map<string, Session>();
 const fails = new Map<string, { n: number; until: number }>();
 const MAX_BODY = 8 * 1024 * 1024;
+const UPLOAD_BODY = 40 * 1024 * 1024;
 const DAY_MS = 12 * 60 * 60 * 1000;
 
 class HttpError extends Error {
@@ -159,7 +161,7 @@ async function userHome(
     ${note(url)}
     <section class="card">
       <h2>আপলোড</h2>
-      <p class="note">পিডিএফ দিলে এক পাতা করে এন্ট্রি হবে। কনফার্মের পর খাতায় যাবে।</p>
+      <p class="note">বড় ফাইল ছোট করে নেওয়া হবে। পিডিএফ এক পাতা করে এন্ট্রি হবে। কনফার্মের পর খাতায় যাবে।</p>
       <form method="post" action="/upload" enctype="multipart/form-data">
         <input type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" required>
         <button>আপলোড</button>
@@ -188,14 +190,14 @@ async function userUpload(req: http.IncomingMessage, res: http.ServerResponse, c
   const file = await readSingleFile(req);
   const type = sniff(file.data);
   if (!type) throw new HttpError("শুধু JPG, PNG, WEBP বা PDF দেওয়া যাবে।");
-  const pages = await singlePages(type, file.data);
+  const pages = await prepareUpload(type, file.data);
   const base = safeName(file.filename);
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     if (!page) continue;
     await saveUpload(ctx.kv, ctx.dataDir, {
       bin,
-      fileName: pageFileName(base, i + 1, pages.length),
+      fileName: pageFileName(base, i + 1, pages.length, page.contentType),
       contentType: page.contentType,
       data: page.data,
     });
@@ -629,20 +631,23 @@ async function readForm(req: http.IncomingMessage): Promise<URLSearchParams> {
 async function readSingleFile(req: http.IncomingMessage): Promise<{ filename: string; data: Buffer }> {
   const type = req.headers["content-type"] ?? "";
   if (!type.includes("multipart/form-data")) throw new HttpError("এক পাতা করে আপলোড করুন।");
-  const parts = parseMultipart(await readBody(req), type).filter((part) => part.filename);
+  const parts = parseMultipart(await readBody(req, UPLOAD_BODY), type).filter((part) => part.filename);
   if (parts.length !== 1) throw new HttpError("এক পাতা করে আপলোড করুন।");
   const file = parts[0];
   if (!file || file.data.length === 0) throw new HttpError("ফাইল বেছে নিন।");
   return { filename: file.filename ?? "page", data: file.data };
 }
 
-async function readBody(req: http.IncomingMessage): Promise<Buffer> {
+async function readBody(req: http.IncomingMessage, limit = MAX_BODY): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buf.length;
-    if (size > MAX_BODY) throw new HttpError("ফাইল অনেক বড়। সর্বোচ্চ ৮ মেগাবাইট।");
+    if (size > limit) {
+      const mb = Math.round(limit / (1024 * 1024));
+      throw new HttpError(`ফাইল অনেক বড়। সর্বোচ্চ ${mb} মেগাবাইট।`);
+    }
     chunks.push(buf);
   }
   return Buffer.concat(chunks);
